@@ -77,9 +77,25 @@ pub fn build(
     check_unique(tree.profiles.iter().map(|p| p.name.as_str()), "profile")?;
     check_unique(tree.targets.iter().map(|t| t.name.as_str()), "target")?;
 
+    // Domain names become filenames and YAML keys, and globs become YAML values,
+    // so constrain them at the source rather than escape at every adapter.
+    for d in &tree.domains {
+        validate_domain_name(&d.name)?;
+        if let Some(globs) = &d.globs {
+            for glob in globs {
+                validate_glob(&d.name, glob)?;
+            }
+        }
+    }
+
     // Two targets writing the same file would clobber each other within one run.
     let mut outputs: HashMap<&str, &str> = HashMap::new();
     for t in &tree.targets {
+        if t.output_file.is_some() && t.output_dir.is_some() {
+            return Err(Error::AmbiguousOutput {
+                target: t.name.clone(),
+            });
+        }
         if let Some(of) = &t.output_file
             && let Some(first) = outputs.insert(of.as_str(), t.name.as_str())
         {
@@ -111,6 +127,38 @@ pub fn build(
     }
 
     Ok(tree)
+}
+
+/// A domain name is used verbatim as a filename and a YAML key, so it must be a
+/// safe identifier: non-empty, starting alphanumeric, then alphanumeric/`-`/`_`.
+fn validate_domain_name(name: &str) -> Result<()> {
+    let mut chars = name.chars();
+    let valid = matches!(chars.next(), Some(c) if c.is_ascii_alphanumeric())
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if valid {
+        Ok(())
+    } else {
+        Err(Error::InvalidName {
+            name: name.to_string(),
+            reason:
+                "must start with a letter or digit and contain only letters, digits, '-' or '_'"
+                    .to_string(),
+        })
+    }
+}
+
+/// A glob becomes a YAML value; reject control characters (notably newlines)
+/// that would break the frontmatter.
+fn validate_glob(domain: &str, glob: &str) -> Result<()> {
+    if glob.chars().any(|c| c.is_control()) {
+        Err(Error::InvalidGlob {
+            domain: domain.to_string(),
+            glob: glob.to_string(),
+            reason: "must not contain control characters or newlines".to_string(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 /// Error if any name appears twice. `kind` labels the diagnostic.
@@ -320,5 +368,76 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, Error::Io { .. }));
+    }
+
+    #[test]
+    fn rejects_unsafe_domain_names() {
+        let root = PathBuf::from("/proj");
+        for bad in [
+            "has space",
+            "has/slash",
+            "bad:colon",
+            "x\ny",
+            "-leading",
+            "",
+        ] {
+            let err = build(
+                &root,
+                vec![src(domain(bad, Some("x"), None), &root)],
+                vec![],
+                vec![],
+            )
+            .unwrap_err();
+            assert!(
+                matches!(err, Error::InvalidName { .. }),
+                "name {bad:?} should be rejected, got {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_safe_domain_names() {
+        let root = PathBuf::from("/proj");
+        for ok in ["code-style", "code_style", "RGPD", "a1"] {
+            build(
+                &root,
+                vec![src(domain(ok, Some("x"), None), &root)],
+                vec![],
+                vec![],
+            )
+            .unwrap_or_else(|e| panic!("name {ok:?} should be accepted: {e:?}"));
+        }
+    }
+
+    #[test]
+    fn rejects_glob_with_control_characters() {
+        let root = PathBuf::from("/proj");
+        let mut d = domain("rust", Some("x"), None);
+        d.globs = Some(vec!["src/**/*.rs\nmalicious: true".into()]);
+        let err = build(&root, vec![src(d, &root)], vec![], vec![]).unwrap_err();
+        assert!(matches!(err, Error::InvalidGlob { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn rejects_target_with_both_output_file_and_dir() {
+        let root = PathBuf::from("/proj");
+        let t = Target {
+            name: "t".into(),
+            adapter: "universal".into(),
+            output_file: Some("AGENTS.md".into()),
+            output_dir: Some(".cursor/rules".into()),
+            profile: "p".into(),
+        };
+        let err = build(
+            &root,
+            vec![src(domain("a", Some("x"), None), &root)],
+            vec![Profile {
+                name: "p".into(),
+                domains: vec!["a".into()],
+            }],
+            vec![t],
+        )
+        .unwrap_err();
+        assert!(matches!(err, Error::AmbiguousOutput { .. }));
     }
 }

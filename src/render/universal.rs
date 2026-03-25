@@ -4,7 +4,7 @@
 
 use super::{
     Adapter, Feature, RenderInput, RenderOutput, RenderedFile, concatenate, degradation_warnings,
-    require_output_file,
+    has_globs, require_output_file,
 };
 use crate::error::Result;
 
@@ -30,7 +30,7 @@ impl Adapter for Universal {
                 self.id(),
                 input.domains,
                 Feature::GlobActivation,
-                |d| d.globs.is_some(),
+                has_globs,
             ),
         })
     }
@@ -67,7 +67,6 @@ mod tests {
         let b = domain("b", "Beta", None);
         let t = target();
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&a, &b],
             target: &t,
         };
@@ -83,7 +82,6 @@ mod tests {
         let scoped = domain("scoped", "Scoped", Some(vec!["src/**/*.rs".into()]));
         let t = target();
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&scoped],
             target: &t,
         };
@@ -94,6 +92,19 @@ mod tests {
     }
 
     #[test]
+    fn empty_globs_do_not_warn() {
+        // `Some(vec![])` is "no globs", consistent with the cursor adapter.
+        let d = domain("d", "X", Some(vec![]));
+        let t = target();
+        let input = RenderInput {
+            domains: &[&d],
+            target: &t,
+        };
+        let out = Universal.render(&input).unwrap();
+        assert!(out.warnings.is_empty());
+    }
+
+    #[test]
     fn errors_without_output_file() {
         let t = Target {
             output_file: None,
@@ -101,7 +112,6 @@ mod tests {
         };
         let a = domain("a", "A", None);
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&a],
             target: &t,
         };

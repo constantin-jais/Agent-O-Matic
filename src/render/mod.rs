@@ -38,7 +38,6 @@ pub struct RenderedFile {
 
 /// Everything an adapter needs to render a target.
 pub struct RenderInput<'a> {
-    pub project_name: &'a str,
     /// Domains already selected and ordered by priority.
     pub domains: &'a [&'a ResolvedDomain],
     pub target: &'a Target,
@@ -74,6 +73,12 @@ pub fn adapter_for(id: &str) -> Option<Box<dyn Adapter>> {
 }
 
 // --- shared helpers ---------------------------------------------------------
+
+/// True when a domain declares a *non-empty* glob set. Centralizes the
+/// "`Some(vec![])` means no globs" rule so every adapter agrees.
+pub(crate) fn has_globs(domain: &ResolvedDomain) -> bool {
+    domain.globs.as_ref().is_some_and(|g| !g.is_empty())
+}
 
 /// Concatenate domain contents into one Markdown body: priority order, blank-line
 /// separated, empty domains skipped, single trailing newline. Used by the
