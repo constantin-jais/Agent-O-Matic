@@ -1,0 +1,403 @@
+//! The end-to-end loop: dispatch -> automerge -> deploy, under one global
+//! envelope (kill-switch, scope-fence, circuit-breaker) that **short-circuits at
+//! the first stage that does not advance**. The three stages are abstracted
+//! behind a `Stages` trait, so the composition (ordering, short-circuit,
+//! envelope) is proven offline; `RealStages` wires the real primitives, the live
+//! boundary. ADR: workspace-and-orchestrator-charter governs the whole chain.
+
+use std::path::Path;
+use std::path::PathBuf;
+
+use serde::Serialize;
+
+use crate::forge::RepoId;
+use crate::{automerge, deploy, dispatch};
+
+/// The incident driving one loop iteration.
+#[derive(Debug, Clone)]
+pub struct LoopRequest {
+    pub issue: u64,
+    pub title: String,
+    pub body: String,
+    pub repo: RepoId,
+}
+
+/// A loop-stage failure.
+#[derive(Debug)]
+pub struct LoopError(pub String);
+
+impl std::fmt::Display for LoopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "loop error: {}", self.0)
+    }
+}
+
+impl std::error::Error for LoopError {}
+
+/// The loop's three stages; each reports whether it advanced.
+pub trait Stages {
+    /// Dispatch a bounded fix; returns the produced branch, or None if none.
+    fn dispatch(&self, req: &LoopRequest) -> Result<Option<String>, LoopError>;
+    /// Gate-and-merge the branch on green evidence; true if merged.
+    fn automerge(&self, branch: &str, req: &LoopRequest) -> Result<bool, LoopError>;
+    /// Canary-deploy + smoke the merged result; true if promoted.
+    fn deploy(&self, branch: &str, req: &LoopRequest) -> Result<bool, LoopError>;
+}
+
+/// The global envelope for the whole loop, on top of each stage's own.
+#[derive(Debug, Clone)]
+pub struct LoopEnvelope {
+    /// Global kill-switch.
+    pub enabled: bool,
+    /// Scope-fence: only repos on this allowlist may run the loop.
+    pub allowlist: Vec<RepoId>,
+    /// Global circuit-breaker: max loop iterations.
+    pub max_iterations: u32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum LoopOutcome {
+    /// The global envelope refused the loop.
+    Refused { reason: String },
+    /// A stage did not advance; later stages were never reached.
+    Stopped { stage: &'static str, reason: String },
+    /// dispatched -> merged -> deployed.
+    Completed { branch: String },
+}
+
+impl LoopOutcome {
+    fn outcome(&self) -> &'static str {
+        match self {
+            LoopOutcome::Refused { .. } => "refused",
+            LoopOutcome::Stopped { .. } => "stopped",
+            LoopOutcome::Completed { .. } => "completed",
+        }
+    }
+}
+
+/// Run the loop once. It stops at the first stage that does not advance — a later
+/// stage is **never reached** after an earlier one stops, so the loop is fail-safe
+/// by construction. Envelope refusals never touch a stage.
+pub fn run_loop<S: Stages + ?Sized>(
+    stages: &S,
+    env: &LoopEnvelope,
+    req: &LoopRequest,
+    iterations_so_far: u32,
+) -> Result<LoopOutcome, LoopError> {
+    if !env.enabled {
+        return Ok(LoopOutcome::Refused {
+            reason: "loop is disabled (kill-switch)".to_string(),
+        });
+    }
+    if !env.allowlist.contains(&req.repo) {
+        return Ok(LoopOutcome::Refused {
+            reason: format!(
+                "scope-fence: {}/{} is not on the loop allowlist",
+                req.repo.owner, req.repo.name
+            ),
+        });
+    }
+    if iterations_so_far >= env.max_iterations {
+        return Ok(LoopOutcome::Refused {
+            reason: format!(
+                "circuit-breaker: {iterations_so_far} iteration(s) already (max {})",
+                env.max_iterations
+            ),
+        });
+    }
+
+    let branch = match stages.dispatch(req)? {
+        Some(b) => b,
+        None => {
+            return Ok(LoopOutcome::Stopped {
+                stage: "dispatch",
+                reason: "no fix branch was produced".to_string(),
+            });
+        }
+    };
+    if !stages.automerge(&branch, req)? {
+        return Ok(LoopOutcome::Stopped {
+            stage: "automerge",
+            reason: "branch was not merged (gate not green)".to_string(),
+        });
+    }
+    if !stages.deploy(&branch, req)? {
+        return Ok(LoopOutcome::Stopped {
+            stage: "deploy",
+            reason: "deploy rolled back (smoke not green)".to_string(),
+        });
+    }
+    Ok(LoopOutcome::Completed { branch })
+}
+
+/// A zero-PII audit record of a loop run.
+#[derive(Serialize)]
+struct AuditEntry<'a> {
+    action: &'a str,
+    issue: u64,
+    repo: String,
+    outcome: &'a str,
+    ts: u64,
+}
+
+/// Append a zero-PII audit line for a loop run (ADR: workspace-and-orchestrator-charter).
+pub fn append_audit(
+    dir: &Path,
+    req: &LoopRequest,
+    outcome: &LoopOutcome,
+    ts: u64,
+) -> std::io::Result<()> {
+    use std::io::Write as _;
+    std::fs::create_dir_all(dir)?;
+    let entry = AuditEntry {
+        action: "loop",
+        issue: req.issue,
+        repo: format!("{}/{}", req.repo.owner, req.repo.name),
+        outcome: outcome.outcome(),
+        ts,
+    };
+    let line = serde_json::to_string(&entry).map_err(std::io::Error::other)?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("loop.jsonl"))?;
+    writeln!(f, "{line}")
+}
+
+/// The real stages: each wires the corresponding primitive (dispatch / automerge
+/// / deploy), scope-fenced to the loop's repo. Subprocess + network throughout,
+/// so it is exercised live, not in unit tests. The deploy commands come from the
+/// environment, like the standalone `aom deploy`.
+pub struct RealStages {
+    pub repo_root: PathBuf,
+    pub deploy_canary: String,
+    pub deploy_promote: String,
+    pub deploy_rollback: String,
+    pub deploy_smoke: String,
+}
+
+fn one(repo: &RepoId) -> Vec<RepoId> {
+    vec![repo.clone()]
+}
+
+impl Stages for RealStages {
+    fn dispatch(&self, req: &LoopRequest) -> Result<Option<String>, LoopError> {
+        let env = dispatch::Envelope {
+            enabled: true,
+            allowlist: one(&req.repo),
+            max_attempts: 1,
+        };
+        let fix = dispatch::FixRequest {
+            issue: req.issue,
+            title: req.title.clone(),
+            body: req.body.clone(),
+            repo: req.repo.clone(),
+        };
+        let report = dispatch::dispatch(
+            &dispatch::ClaudeFixer {
+                repo_root: self.repo_root.clone(),
+            },
+            &env,
+            &fix,
+        )
+        .map_err(|e| LoopError(e.0))?;
+        Ok(match report {
+            dispatch::DispatchReport::Attempted { branch, .. } => Some(branch),
+            dispatch::DispatchReport::Refused { .. } => None,
+        })
+    }
+
+    fn automerge(&self, branch: &str, req: &LoopRequest) -> Result<bool, LoopError> {
+        let env = automerge::MergeEnvelope {
+            enabled: true,
+            allowlist: one(&req.repo),
+            max_merges: 1,
+        };
+        let mreq = automerge::MergeRequest {
+            branch: branch.to_string(),
+            repo: req.repo.clone(),
+        };
+        let outcome = automerge::auto_merge(
+            &automerge::GhChecksGate,
+            &automerge::GhMerger,
+            &env,
+            &mreq,
+            0,
+        )
+        .map_err(|e| LoopError(e.0))?;
+        Ok(matches!(outcome, automerge::MergeOutcome::Merged { .. }))
+    }
+
+    fn deploy(&self, branch: &str, req: &LoopRequest) -> Result<bool, LoopError> {
+        let env = deploy::DeployEnvelope {
+            enabled: true,
+            allowlist: one(&req.repo),
+            max_deploys: 1,
+        };
+        let dreq = deploy::DeployRequest {
+            target: branch.to_string(),
+            repo: req.repo.clone(),
+        };
+        let outcome = deploy::deploy(
+            &deploy::CommandDeployer {
+                canary_cmd: self.deploy_canary.clone(),
+                promote_cmd: self.deploy_promote.clone(),
+                rollback_cmd: self.deploy_rollback.clone(),
+            },
+            &deploy::CommandSmoke {
+                smoke_cmd: self.deploy_smoke.clone(),
+            },
+            &env,
+            &dreq,
+            0,
+        )
+        .map_err(|e| LoopError(e.0))?;
+        Ok(matches!(outcome, deploy::DeployOutcome::Promoted { .. }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use super::*;
+
+    /// Records the stages reached, and returns configured per-stage results.
+    struct FakeStages {
+        dispatch_branch: Option<&'static str>,
+        merged: bool,
+        promoted: bool,
+        reached: RefCell<Vec<&'static str>>,
+    }
+
+    impl Stages for FakeStages {
+        fn dispatch(&self, _req: &LoopRequest) -> Result<Option<String>, LoopError> {
+            self.reached.borrow_mut().push("dispatch");
+            Ok(self.dispatch_branch.map(String::from))
+        }
+        fn automerge(&self, _b: &str, _req: &LoopRequest) -> Result<bool, LoopError> {
+            self.reached.borrow_mut().push("automerge");
+            Ok(self.merged)
+        }
+        fn deploy(&self, _b: &str, _req: &LoopRequest) -> Result<bool, LoopError> {
+            self.reached.borrow_mut().push("deploy");
+            Ok(self.promoted)
+        }
+    }
+
+    fn repo() -> RepoId {
+        RepoId {
+            owner: "o".into(),
+            name: "n".into(),
+        }
+    }
+    fn req() -> LoopRequest {
+        LoopRequest {
+            issue: 8,
+            title: "t".into(),
+            body: "b".into(),
+            repo: repo(),
+        }
+    }
+    fn env(enabled: bool, allow: Vec<RepoId>, max: u32) -> LoopEnvelope {
+        LoopEnvelope {
+            enabled,
+            allowlist: allow,
+            max_iterations: max,
+        }
+    }
+    fn stages(branch: Option<&'static str>, merged: bool, promoted: bool) -> FakeStages {
+        FakeStages {
+            dispatch_branch: branch,
+            merged,
+            promoted,
+            reached: RefCell::new(Vec::new()),
+        }
+    }
+
+    #[test]
+    fn all_green_completes_in_order() {
+        let s = stages(Some("aom/fix/issue-8"), true, true);
+        let r = run_loop(&s, &env(true, vec![repo()], 1), &req(), 0).unwrap();
+        assert!(matches!(r, LoopOutcome::Completed { .. }));
+        assert_eq!(*s.reached.borrow(), ["dispatch", "automerge", "deploy"]);
+    }
+
+    #[test]
+    fn dispatch_none_stops_before_merge() {
+        let s = stages(None, true, true);
+        let r = run_loop(&s, &env(true, vec![repo()], 1), &req(), 0).unwrap();
+        match r {
+            LoopOutcome::Stopped { stage, .. } => assert_eq!(stage, "dispatch"),
+            other => panic!("expected stop at dispatch, got {other:?}"),
+        }
+        // Short-circuit: automerge/deploy were never reached.
+        assert_eq!(*s.reached.borrow(), ["dispatch"]);
+    }
+
+    #[test]
+    fn unmerged_stops_before_deploy() {
+        let s = stages(Some("b"), false, true);
+        let r = run_loop(&s, &env(true, vec![repo()], 1), &req(), 0).unwrap();
+        match r {
+            LoopOutcome::Stopped { stage, .. } => assert_eq!(stage, "automerge"),
+            other => panic!("expected stop at automerge, got {other:?}"),
+        }
+        assert_eq!(*s.reached.borrow(), ["dispatch", "automerge"]);
+    }
+
+    #[test]
+    fn rolled_back_stops_at_deploy() {
+        let s = stages(Some("b"), true, false);
+        let r = run_loop(&s, &env(true, vec![repo()], 1), &req(), 0).unwrap();
+        match r {
+            LoopOutcome::Stopped { stage, .. } => assert_eq!(stage, "deploy"),
+            other => panic!("expected stop at deploy, got {other:?}"),
+        }
+        assert_eq!(*s.reached.borrow(), ["dispatch", "automerge", "deploy"]);
+    }
+
+    #[test]
+    fn kill_switch_refuses_before_any_stage() {
+        let s = stages(Some("b"), true, true);
+        let r = run_loop(&s, &env(false, vec![repo()], 1), &req(), 0).unwrap();
+        assert!(matches!(r, LoopOutcome::Refused { .. }));
+        assert!(s.reached.borrow().is_empty(), "no stage runs when disabled");
+    }
+
+    #[test]
+    fn scope_fence_refuses_off_allowlist() {
+        let s = stages(Some("b"), true, true);
+        let r = run_loop(&s, &env(true, vec![], 1), &req(), 0).unwrap();
+        match r {
+            LoopOutcome::Refused { reason } => assert!(reason.contains("scope-fence")),
+            other => panic!("expected scope-fence refusal, got {other:?}"),
+        }
+        assert!(s.reached.borrow().is_empty());
+    }
+
+    #[test]
+    fn circuit_breaker_refuses_when_exhausted() {
+        let s = stages(Some("b"), true, true);
+        let r = run_loop(&s, &env(true, vec![repo()], 1), &req(), 1).unwrap();
+        match r {
+            LoopOutcome::Refused { reason } => assert!(reason.contains("circuit-breaker")),
+            other => panic!("expected circuit-breaker refusal, got {other:?}"),
+        }
+        assert!(s.reached.borrow().is_empty());
+    }
+
+    #[test]
+    fn audit_line_is_zero_pii() {
+        let dir = tempfile::tempdir().unwrap();
+        let outcome = LoopOutcome::Completed { branch: "b".into() };
+        append_audit(dir.path(), &req(), &outcome, 100).unwrap();
+        let body = std::fs::read_to_string(dir.path().join("loop.jsonl")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(body.trim()).unwrap();
+        assert_eq!(v["action"], "loop");
+        assert_eq!(v["issue"], 8);
+        assert_eq!(v["repo"], "o/n");
+        assert_eq!(v["outcome"], "completed");
+        assert_eq!(v.as_object().unwrap().len(), 5);
+    }
+}
