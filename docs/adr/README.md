@@ -24,3 +24,4 @@ doubles as teaching material. Format: context / decision / consequences.
 | [0017](0017-end-to-end-loop.md)                     | End-to-end loop: one envelope, fail-safe by construction    |
 | [0018](0018-publish-step.md)                        | Publish step: push + open PR (lets the loop complete)       |
 | [0019](0019-operate-loop-as-scoped-ci-bot.md)       | Operate the autonomous loop as a scoped CI bot              |
+| [0020](0020-merge-gate-waits-for-checks.md)         | Merge gate waits (polls) for checks to settle               |

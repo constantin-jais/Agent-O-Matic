@@ -163,7 +163,7 @@ fn main() -> miette::Result<()> {
                 repo: repo_id.clone(),
             };
             let outcome = automerge::auto_merge(
-                &automerge::GhChecksGate,
+                &automerge::GhChecksGate::default(),
                 &automerge::GhMerger,
                 &env,
                 &req,
@@ -256,7 +256,7 @@ fn main() -> miette::Result<()> {
                     "  1. dispatch  -> would create `{branch}` and run a bounded fixer. [skipped]"
                 );
                 println!("  2. publish   -> would push `{branch}` and open a PR. [skipped]");
-                let verdict = automerge::GhChecksGate
+                let verdict = automerge::GhChecksGate::default()
                     .verdict(&automerge::MergeRequest {
                         branch: branch.clone(),
                         repo: repo_id.clone(),
