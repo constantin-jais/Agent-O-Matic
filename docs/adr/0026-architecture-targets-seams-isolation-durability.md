@@ -129,9 +129,10 @@ multi-forge; implement GitHub only until a second forge is actually needed.
 - **Sequencing.** §1 (Forge/octocrab) is the first build — it pays debt and
   unblocks §6. Isolation (§2), policy (§3), and durability (§4) follow; the
   daemon graduation (§5) is last.
-- **Honest limitations.** The orchestrator still shells out to `gh` until §1
-  lands. The gate does not wait for checks across forges. Deploy runs
-  caller-provided commands (the canary→rollback orchestration is built; the
+- **Honest limitations.** Since ADR-0027, GitHub operations run through the
+  `Forge`/octocrab seam; only `git push` remains a subprocess. The gate wait is
+  implemented for GitHub check-runs, not yet as a multi-forge abstraction. Deploy
+  runs caller-provided commands (the canary→rollback orchestration is built; the
   commands are yours). gVisor overhead is ~100 ms; the current allow-listed Bash
   is defense-in-depth, not containment.
 - **Graduations, not rewrites.** Daemon, multi-forge, Firecracker, and SQLite

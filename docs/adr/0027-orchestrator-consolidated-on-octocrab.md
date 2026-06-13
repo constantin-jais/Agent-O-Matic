@@ -11,10 +11,10 @@ The incident→issue layer already spoke to GitHub through a typed octocrab clie
 behind the `Forge` trait (ADR: github-via-octocrab), but the orchestrator's gate,
 publish, and merge still shelled out to the `gh` CLI at five sites. Roughly half
 the live-debug integration bugs traced straight to that coupling: a CI runner's
-`github.token` cannot resolve the `statusCheckRollup` GraphQL `gh pr checks`
-uses; `gh` exit codes were read as check status; PR existence was probed with the
-wrong call. The `gh` seam was also untyped, version-fragile, and invisible to the
-offline `Fake` tests.
+`github.token` cannot resolve the `statusCheckRollup` GraphQL path the CLI uses
+for PR checks; `gh` exit codes were read as check status; PR existence was probed
+with the wrong call. The `gh` seam was also untyped, version-fragile, and
+invisible to the offline `Fake` tests.
 
 ## Decision
 
@@ -40,7 +40,7 @@ stays a subprocess — it is VCS, not forge API.
   `block_on`, never spawned; `Forge` stays `Send`. The gate poll-loop swaps
   `thread::sleep` for `tokio::time::sleep`.
 - **The forge-backed gate/merger become testable.** `ForgeGate` and `ForgeMerger`
-  (replacing `GhChecksGate`/`GhMerger`) take a `&Forge`, so the in-memory
+  (replacing the old GitHub-CLI gate/merger) take a `&Forge`, so the in-memory
   `FakeForge` now exercises the no-PR, all-green, and any-fail paths offline —
   coverage the `gh`-subprocess gate never had (ADR: autonomous-merge, ADR:
   merge-gate-waits-for-checks).

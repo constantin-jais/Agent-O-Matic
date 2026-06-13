@@ -13,14 +13,15 @@ loop could never complete in a single run.
 
 ## Decision
 
-`GhChecksGate` polls `gh pr checks` (every `interval`, default 15s) until the
-checks settle, bounded by a `timeout` (default 10 min), then returns the verdict:
+`ForgeGate` polls GitHub check-runs through the `Forge` seam (octocrab in the
+real implementation; every `interval`, default 10s) until the checks settle,
+bounded by a `timeout` (default 3 min), then returns the verdict:
 
-- all pass (or skipped) -> Green; any fail/cancel -> Red; no PR / no checks ->
-  Unknown immediately (nothing to wait for); still pending at the deadline ->
-  Unknown (fail-closed — the wait is bounded, never indefinite).
-- The classification (which `gh` buckets mean pass/fail/wait) is extracted into a
-  pure `classify` and unit-tested; only the poll loop (subprocess + sleep) is the
+- all pass (or skipped) -> Green; any fail/cancel -> Red; no open PR -> Unknown
+  immediately; no checks yet / still pending -> keep waiting until the deadline,
+  then Unknown (fail-closed — the wait is bounded, never indefinite).
+- The classification (which forge buckets mean pass/fail/wait) is extracted into
+  a pure `classify` and unit-tested; only the forge call and sleep loop are the
   live boundary.
 
 ## Consequences

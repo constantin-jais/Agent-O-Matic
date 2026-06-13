@@ -8,13 +8,14 @@ Accepted (2026-06-27).
 
 Reviewing the never-run live paths (via the `aom loop --dry-run` added alongside)
 exposed a gap: `dispatch` produces a *local* branch, but `automerge` gates a *PR*.
-With nothing in between, the loop always stopped at automerge — `gh pr checks`
-found no PR (verdict Unknown, fail-closed). The loop could not complete.
+With nothing in between, the loop always stopped at automerge — the gate found no
+PR (verdict Unknown, fail-closed). The loop could not complete.
 
 ## Decision
 
 Add a `publish` stage between dispatch and automerge: push the branch and open a
-PR (`git push` + `gh pr create`). The loop is now dispatch -> publish -> automerge
+PR (`git push` + forge PR creation; originally via the GitHub CLI, then moved to
+`Forge`/octocrab by ADR-0027). The loop is now dispatch -> publish -> automerge
 -> deploy.
 
 - **Distinct from dispatch.** Dispatch's charter (ADR: dispatch-bounded-fixer) is
@@ -22,8 +23,9 @@ PR (`git push` + `gh pr create`). The loop is now dispatch -> publish -> automer
   Run standalone, dispatch still stops at a local branch.
 - **Still short-circuiting.** A failed push or PR stops the loop at `publish`;
   automerge and deploy are never reached. Same fail-safe contract.
-- **Live boundary.** `RealStages::publish` shells out to git/gh; the offline test
-  (`unpublished_stops_before_merge`) proves the composition without the network.
+- **Live boundary.** `RealStages::publish` shells out to git and calls the forge;
+  the offline test (`unpublished_stops_before_merge`) proves the composition
+  without the network.
 
 ## Consequences
 

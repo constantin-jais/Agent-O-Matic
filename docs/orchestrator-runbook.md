@@ -51,11 +51,10 @@ Bash`) to a throwaway machine rather than your laptop.
 
 ## Honest limitations (what a live run will and won't do)
 
-- **The gate does not wait.** `automerge` queries `gh pr checks` once, immediately
-  after publish — while the sandbox CI is still pending. Pending → `Unknown` →
-  the loop **stops at automerge** (correct fail-closed behaviour, not a completed
-  run). Completing in one shot needs a gate that polls until checks settle — a
-  separate, later increment.
+- **The gate waits, but only within a bounded fail-closed window.** After publish,
+  `automerge` uses the `ForgeGate`/octocrab check-runs path to poll until checks
+  settle. Green checks can let the loop complete in one run; failed, missing, or
+  still-pending checks at the timeout return `Unknown`/refusal rather than merge.
 - **Deploy is a no-op.** The `AOM_DEPLOY_*` commands are all `true`; the stage
   exercises wiring, never real infrastructure.
 - **The fixer may no-op.** On an issue with no real bug, the headless Claude may

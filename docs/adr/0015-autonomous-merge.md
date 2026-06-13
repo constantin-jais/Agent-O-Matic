@@ -24,10 +24,11 @@ binding envelope:
   allowlist), rate-limit / circuit-breaker (max merges per run).
 - **Reversible** — a merge is undoable by revert; combined with the green-only
   rule, the blast radius stays bounded.
-- **Seams** — `Gate` (real: `gh pr checks`) and `Merger` (real: `gh pr merge
-  --rebase`) are traits, so the decision logic is proven offline (green->merge,
-  red->never, unknown->fail-closed, plus every envelope refusal). The network is
-  the live boundary.
+- **Seams** — `Gate` and `Merger` are traits, so the decision logic is proven
+  offline (green->merge, red->never, unknown->fail-closed, plus every envelope
+  refusal). The original live implementation used the GitHub CLI; ADR-0027 moved
+  GitHub operations to the `Forge`/octocrab seam. The network is the live
+  boundary.
 - **Zero-PII audit** — every decision is journaled (action, repo, branch,
   outcome, ts).
 
