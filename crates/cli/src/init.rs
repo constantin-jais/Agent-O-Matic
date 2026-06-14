@@ -377,9 +377,14 @@ pub fn print_checklist(config: &InitConfig) {
         }
     }
 
-    if config.autonomy_level == "L2" || config.autonomy_level == "L3" {
-        println!("[ ] 6. Enable branch protection and require approvals for main.");
-        println!("[ ] 7. Configure your CI checks (GitHub Actions).");
+    if config.autonomy_level == "L2" {
+        println!("[ ] 6. Enable branch protection and require human approval before merge.");
+        println!("[ ] 7. Configure required CI checks (GitHub Actions).");
+    } else if config.autonomy_level == "L3" {
+        println!("[ ] 6. Enable branch protection with required CI checks.");
+        println!("       Do not require human approval for the bot merge path unless");
+        println!("       you intentionally want gated L2-style operation.");
+        println!("[ ] 7. Confirm the bot can merge after the gate is green.");
     }
 
     if config.autonomy_level == "L3" {

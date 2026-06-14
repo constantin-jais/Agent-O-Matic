@@ -419,6 +419,40 @@ fn init_l2_checklist_matches_workflow_credentials() {
         !stdout.contains("GITHUB_TOKEN (for git push"),
         "checklist must not ask users to create the obsolete GITHUB_TOKEN secret"
     );
+    assert!(
+        stdout.contains("require human approval before merge"),
+        "L2 should remain the approve-before-merge mode"
+    );
+}
+
+#[test]
+fn init_l3_checklist_allows_green_gate_bot_merge() {
+    let tmp = tempfile::tempdir().unwrap();
+    let output = Command::new(AOM)
+        .args([
+            "init",
+            "--name",
+            "l3-test",
+            "--level",
+            "L3",
+            "--adapter",
+            "universal",
+            "--yes",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Do not require human approval for the bot merge path"),
+        "L3 should not instruct users to block the bot on mandatory review"
+    );
+    assert!(
+        stdout.contains("Confirm the bot can merge after the gate is green"),
+        "L3 should explicitly preserve the green-gate requirement"
+    );
 }
 
 #[test]
