@@ -24,6 +24,10 @@ are US-corporation gatekeepers. This is a genuine trade-off, not a hedge.
 
 ## Decision
 
+The release/distribution gates described here are implemented in the extracted
+[Link Cable](https://github.com/constantin-jais/link-cable) substrate. Agent-O-Matic
+keeps the doctrine as origin context and consumes Link Cable externally.
+
 ### Keyless by default — dissolve the static-secret surface
 
 Prefer credentials that **do not exist at rest**:
