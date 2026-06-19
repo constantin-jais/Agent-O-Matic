@@ -7,7 +7,7 @@ gate (ADR-0010).
 
 Copy it to `.github/workflows/cos-matic.yml`. It:
 
-1. installs `aom`,
+1. installs `cosmatic`,
 2. runs `cosmatic goals` (hard gates + observability report),
 3. runs `cosmatic generate --check`, which fails if any committed output (`AGENTS.md`,
    `CLAUDE.md`, `.cursor/rules/*`, …) has drifted from `harness.toml` or a domain

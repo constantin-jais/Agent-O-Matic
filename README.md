@@ -14,27 +14,29 @@ under a reversible safety envelope **you** own.
 
 ```mermaid
 graph TB
-    subgraph product["🎯 Product"]
-        RL["Presto-Matic · rumble-lm<br/>Collaborative Learning App"]
+    subgraph products["🎯 Rumble products"]
+        RL["rumble-lm<br/>Collaborative learning platform"]
+        RC["rumble-cos<br/>Public knowledge site"]
     end
-    subgraph agentic["🤖 Agentic Tools"]
-        cosmatic["cos-matic<br/>Config Compiler + Orchestrator"]
-        DL["wrench-loader<br/>Document Ingestion Worker"]
-        MC["gear-memory<br/>Local Agent Context"]
+    subgraph tools["🛠️ Sovereign tooling"]
+        CM["cos-matic<br/>Agent config + autonomous code-ops"]
+        WL["wrench-loader<br/>Document ingestion worker"]
+        GM["gear-memory<br/>Local agent context"]
     end
-    subgraph devops["🔧 DevOps Tools"]
-        LC["gear-cable<br/>Distribution Substrate"]
-        SD["gear-depot<br/>Registry Proxy / Cache"]
-        VI["vault-inspector<br/>Postgres Security Audit"]
+    subgraph infra["⚙️ Infrastructure"]
+        GC["gear-cable<br/>Distribution substrate"]
+        GD["gear-depot<br/>Registry proxy/cache"]
+        VI["vault-inspector<br/>Postgres security audit"]
     end
     RL --> WL
     RL --> GM
     RL --> VI
     RL --> GD
     RL --> GC
-    cosmatic --> LC
+    RC --> RL
+    CM --> GC
     WL --> GM
-    style cosmatic fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style CM fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 **Status — `v0`: compiler proven, orchestrator live-tested.** Built as a
@@ -274,9 +276,9 @@ account-level risk (ADR-0019).
 | **Fixer isolation**        | `Fixer` trait → `FixerRuntime` (target)                                | Today: headless Claude with an allow-list (`Edit Write Read Grep Glob Bash(cargo *)`), in an ephemeral runner. Target: gVisor (V1) → Firecracker microVM. (ADR-0023, ADR-0026 §2)                                                       |
 | **Policy**                 | Typed TOML (`[autonomy]`, `[policy]`)                                  | Declarative, versionable, auditable. No OPA/Rego — a rule engine is overkill here. (ADR-0026 §3)                                                                                                                                        |
 | **Durability (future)**    | SQLite run-state                                                       | Proto: the zero-PII JSONL audit. Target: a SQLite run-ledger for resume + replay. **Not** Temporal — an external service fights the self-hostable ethos. (ADR-0026 §4)                                                                  |
-| **Portability core**       | pure `compile()` seam; `aom-core` target                               | Today, `cos_matic::generate::compile()` is I/O-free and returns `Vec<RenderedFile>`; ADR-0029 targets extracting that seam into a standalone `aom-core` for WASM/FFI bindings.                                                      |
-| **Distribution substrate** | [Link Cable](https://github.com/constantin-jais/gear-cable) (external) | Rust-first release/distribution substrate extracted from the cosmatic doctrine: manifests, artifact plans, forward-only publish semantics, and `compensate`, never rollback. (ADR-0030)                                                      |
-| **Supply-chain**           | Link Cable policy + sigstore/cosign keyless, SLSA, SBOM (target)       | Keyless/OIDC publishing — no long-lived secret; a store-free sovereign floor per platform as a CI gate. (ADR-0031)                                                                                                                      |
+| **Portability core**       | pure `compile()` seam; `cos-matic-core` target                               | Today, `cos_matic::generate::compile()` is I/O-free and returns `Vec<RenderedFile>`; ADR-0029 targets extracting that seam into a standalone `cos-matic-core` for WASM/FFI bindings.                                                      |
+| **Distribution substrate** | [gear-cable](https://github.com/constantin-jais/gear-cable) (external) | Rust-first release/distribution substrate extracted from the cosmatic doctrine: manifests, artifact plans, forward-only publish semantics, and `compensate`, never rollback. (ADR-0030)                                                      |
+| **Supply-chain**           | gear-cable policy + sigstore/cosign keyless, SLSA, SBOM (target)       | Keyless/OIDC publishing — no long-lived secret; a store-free sovereign floor per platform as a CI gate. (ADR-0031)                                                                                                                      |
 | **Native UI**              | truly-native per platform (target)                                     | SwiftUI/Compose/WinUI/GTK over one Rust core; N native UIs ≠ N logic impls. (ADR-0032)                                                                                                                                                  |
 
 **Why Rust over Go/TS:** the type system lets the compiler enforce the safe-write
