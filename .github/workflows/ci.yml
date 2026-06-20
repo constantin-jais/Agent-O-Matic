@@ -26,6 +26,25 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features
       - name: Test
         run: cargo test --workspace --all-features
+      - name: Handoff smoke
+        run: |
+          cat > /tmp/canvas-minimal.valid.json <<'JSON'
+          {
+            "format":"canvas.bolt_handoff.v0.1",
+            "kind":"planning_request",
+            "source":{"product":"rumble-canvas","workspace_id":"w","handoff_id":"h","created_by":"a","created_at":"2026-06-30T00:00:00Z"},
+            "package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","items":[{"section_id":"s","revision_id":"r"}]},
+            "planning_scope":{"mode":"full_package","target_objects":[],"excluded_objects":[],"goal":"Plan only"},
+            "spec_context":{},
+            "traceability_links":[{"source_type":"journey","source_id":"j","target_type":"action","target_id":"a","relation_type":"implements"}],
+            "active_waivers":[],"open_questions":[],"risks":[],"capability_candidates":[],
+            "constraints":{"sovereignty":"self-hostable","data_residency":"EU","non_goals":[]},
+            "requested_outputs":["implementation_plan"],
+            "execution_policy":{"planning_only":true,"allow_execution":false,"requires_human_approval_for_execution":true}
+          }
+          JSON
+          cargo run -q -p cos-matic-cli -- handoff validate /tmp/canvas-minimal.valid.json --json
+          cargo run -q -p cos-matic-cli -- handoff plan /tmp/canvas-minimal.valid.json --dry-run --json
 
   # Dogfood: the tool gates its own example (ADR-0010). Fails if the committed
   # example outputs drift from the source, or a hard gate breaks.
