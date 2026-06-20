@@ -1,0 +1,14 @@
+# Rust-core language ownership policy.
+# ADR: rust-core-doctrine-hardening
+
+[[language_ownership.zones]]
+name = "core"
+paths = ["crates/", "src/"]
+allow_extensions = ["rs", "toml", "md", "sql", "json", "yml", "yaml"]
+deny_extensions = ["ts", "tsx", "js", "jsx", "zig", "sh"]
+
+[[language_ownership.zones]]
+name = "web"
+paths = ["web/", "apps/"]
+allow_extensions = ["ts", "tsx", "css", "html", "json", "md", "toml"]
+deny_extensions = ["js", "jsx", "mjs", "cjs"]

@@ -37,3 +37,4 @@ doubles as teaching material. Format: context / decision / consequences.
 | [0030](0030-distribution-doctrine-append-only.md)               | Distribution doctrine: append-only, forward-only, compensate-not-rollback |
 | [0031](0031-supply-chain-and-sovereignty.md)                    | Supply-chain (keyless) + sovereign store-free floor per platform          |
 | [0032](0032-native-ui-and-binding-matrix.md)                    | Native UI per platform + binding matrix over the core                     |
+| [0033](0033-rust-core-doctrine-hardening.md)                    | Rust-core doctrine hardening from legacy agent config                     |

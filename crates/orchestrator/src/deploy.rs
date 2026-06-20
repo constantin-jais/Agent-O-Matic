@@ -192,17 +192,26 @@ pub struct CommandDeployer {
 
 impl Deployer for CommandDeployer {
     fn deploy_canary(&self, req: &DeployRequest) -> Result<Canary, DeployError> {
-        run(&self.canary_cmd, &[("cosmatic_TARGET", req.target.as_str())])?;
+        run(
+            &self.canary_cmd,
+            &[("cosmatic_TARGET", req.target.as_str())],
+        )?;
         Ok(Canary {
             id: req.target.clone(),
         })
     }
     fn promote(&self, canary: &Canary) -> Result<String, DeployError> {
-        run(&self.promote_cmd, &[("cosmatic_CANARY", canary.id.as_str())])?;
+        run(
+            &self.promote_cmd,
+            &[("cosmatic_CANARY", canary.id.as_str())],
+        )?;
         Ok(format!("promoted {}", canary.id))
     }
     fn rollback(&self, canary: &Canary) -> Result<(), DeployError> {
-        run(&self.rollback_cmd, &[("cosmatic_CANARY", canary.id.as_str())])
+        run(
+            &self.rollback_cmd,
+            &[("cosmatic_CANARY", canary.id.as_str())],
+        )
     }
 }
 

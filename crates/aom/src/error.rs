@@ -79,6 +79,16 @@ pub enum Error {
     #[diagnostic(code(aom::invalid_goal))]
     InvalidGoal { check: String, reason: String },
 
+    /// A machine-readable inspection policy could not be parsed.
+    #[error("invalid policy `{path}`: {message}")]
+    #[diagnostic(code(aom::invalid_policy))]
+    InvalidPolicy { path: String, message: String },
+
+    /// A Rumble-to-Bolt handoff payload could not be parsed or validated as input.
+    #[error("invalid handoff payload: {message}")]
+    #[diagnostic(code(aom::invalid_handoff))]
+    InvalidHandoff { message: String },
+
     /// One or more hard-gate goals failed.
     #[error("hard gate(s) failed:\n{}", .failures.join("\n"))]
     #[diagnostic(code(aom::goals_failed))]
@@ -192,7 +202,10 @@ pub enum Error {
 
     /// `--check` found one or more generated files out of date with the source.
     #[error("drift detected: {} file(s) out of date:\n{}", .paths.len(), .paths.join("\n"))]
-    #[diagnostic(code(aom::drift), help("run `cosmatic generate` and commit the result"))]
+    #[diagnostic(
+        code(aom::drift),
+        help("run `cosmatic generate` and commit the result")
+    )]
     Drift { paths: Vec<String> },
 }
 

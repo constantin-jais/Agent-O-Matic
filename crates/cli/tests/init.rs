@@ -34,6 +34,24 @@ fn init_noninteractive_l0_creates_minimal_scaffold() {
         tmp.path().join("domains/core-values.md").exists(),
         "domains/core-values.md should be created"
     );
+    assert!(
+        tmp.path().join(".cosmatic/adr-required.toml").exists(),
+        "ADR-required policy should be created"
+    );
+    assert!(
+        tmp.path()
+            .join(".cosmatic/language-ownership.toml")
+            .exists(),
+        "language ownership policy should be created"
+    );
+    assert!(
+        tmp.path().join(".cosmatic/frontend-strict.toml").exists(),
+        "frontend strict policy should be created"
+    );
+    assert!(
+        tmp.path().join(".cosmatic/shell-debt.toml").exists(),
+        "shell debt policy should be created"
+    );
 
     // Assert no workflow (L0 only).
     assert!(
@@ -94,6 +112,29 @@ fn init_noninteractive_l1_creates_workflow() {
     assert!(
         workflow.contains("workflow_dispatch"),
         "workflow should be manually triggered"
+    );
+    assert!(
+        workflow.contains("inspect adr-required --root . --policy .cosmatic/adr-required.toml"),
+        "workflow should run the ADR-required gate"
+    );
+    assert!(
+        workflow.contains(
+            "inspect language-ownership --root . --policy .cosmatic/language-ownership.toml"
+        ),
+        "workflow should run the language ownership gate"
+    );
+    assert!(
+        workflow
+            .contains("inspect frontend-strict --root . --policy .cosmatic/frontend-strict.toml"),
+        "workflow should run the frontend strict gate"
+    );
+    assert!(
+        workflow.contains("inspect shell-debt --root . --policy .cosmatic/shell-debt.toml"),
+        "workflow should run the shell debt gate"
+    );
+    assert!(
+        workflow.contains("generate --check --manifest harness.toml"),
+        "workflow should run the generated config drift gate"
     );
 }
 
@@ -172,6 +213,14 @@ fn init_is_idempotent_does_not_clobber_on_second_run() {
     assert!(out1.status.success(), "first init should succeed");
 
     let original_content = fs::read_to_string(tmp.path().join("harness.toml")).unwrap();
+    let original_adr_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/adr-required.toml")).unwrap();
+    let original_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/language-ownership.toml")).unwrap();
+    let original_frontend_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/frontend-strict.toml")).unwrap();
+    let original_shell_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/shell-debt.toml")).unwrap();
 
     // Second run—should warn about existing files, not overwrite.
     let out2 = Command::new(COSMATIC)
@@ -192,9 +241,33 @@ fn init_is_idempotent_does_not_clobber_on_second_run() {
     assert!(out2.success(), "second init should not error");
 
     let new_content = fs::read_to_string(tmp.path().join("harness.toml")).unwrap();
+    let new_adr_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/adr-required.toml")).unwrap();
+    let new_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/language-ownership.toml")).unwrap();
+    let new_frontend_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/frontend-strict.toml")).unwrap();
+    let new_shell_policy =
+        fs::read_to_string(tmp.path().join(".cosmatic/shell-debt.toml")).unwrap();
     assert_eq!(
         original_content, new_content,
         "harness.toml must not be modified on re-run"
+    );
+    assert_eq!(
+        original_adr_policy, new_adr_policy,
+        "ADR-required policy must not be modified on re-run"
+    );
+    assert_eq!(
+        original_policy, new_policy,
+        "language ownership policy must not be modified on re-run"
+    );
+    assert_eq!(
+        original_frontend_policy, new_frontend_policy,
+        "frontend strict policy must not be modified on re-run"
+    );
+    assert_eq!(
+        original_shell_policy, new_shell_policy,
+        "shell debt policy must not be modified on re-run"
     );
 }
 
@@ -333,6 +406,82 @@ fn init_creates_valid_harness_toml_that_aom_generate_accepts() {
 
     assert!(status.success());
 
+    // Verify the generated ADR-required policy is accepted.
+    let adr_status = Command::new(COSMATIC)
+        .args([
+            "inspect",
+            "adr-required",
+            "--root",
+            ".",
+            "--policy",
+            ".cosmatic/adr-required.toml",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .unwrap();
+
+    assert!(
+        adr_status.success(),
+        "generated ADR-required policy should pass"
+    );
+
+    // Verify the generated language-ownership policy is accepted.
+    let inspect_status = Command::new(COSMATIC)
+        .args([
+            "inspect",
+            "language-ownership",
+            "--root",
+            ".",
+            "--policy",
+            ".cosmatic/language-ownership.toml",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .unwrap();
+
+    assert!(
+        inspect_status.success(),
+        "generated language ownership policy should pass"
+    );
+
+    // Verify the generated frontend strict policy is accepted.
+    let frontend_status = Command::new(COSMATIC)
+        .args([
+            "inspect",
+            "frontend-strict",
+            "--root",
+            ".",
+            "--policy",
+            ".cosmatic/frontend-strict.toml",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .unwrap();
+
+    assert!(
+        frontend_status.success(),
+        "generated frontend strict policy should pass"
+    );
+
+    // Verify the generated shell debt policy is accepted.
+    let shell_status = Command::new(COSMATIC)
+        .args([
+            "inspect",
+            "shell-debt",
+            "--root",
+            ".",
+            "--policy",
+            ".cosmatic/shell-debt.toml",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .unwrap();
+
+    assert!(
+        shell_status.success(),
+        "generated shell debt policy should pass"
+    );
+
     // Verify `cosmatic generate` accepts and compiles the generated manifest.
     let gen_status = Command::new(COSMATIC)
         .args(["generate"])
@@ -380,6 +529,22 @@ fn init_prints_checklist_for_l1() {
     assert!(
         stdout.contains("Operator Checklist"),
         "should print operator checklist"
+    );
+    assert!(
+        stdout.contains("cosmatic inspect adr-required"),
+        "checklist should include ADR-required gate"
+    );
+    assert!(
+        stdout.contains("cosmatic inspect language-ownership"),
+        "checklist should include language ownership gate"
+    );
+    assert!(
+        stdout.contains("cosmatic inspect frontend-strict"),
+        "checklist should include frontend strict gate"
+    );
+    assert!(
+        stdout.contains("cosmatic inspect shell-debt"),
+        "checklist should include shell debt gate"
     );
     assert!(
         stdout.contains("L1"),

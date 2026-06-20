@@ -20,6 +20,8 @@ pub mod config;
 pub mod error;
 pub mod generate;
 pub mod goals;
+pub mod handoff;
+pub mod inspect;
 mod ir;
 pub mod library;
 mod lock;

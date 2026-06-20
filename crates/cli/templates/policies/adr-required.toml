@@ -1,0 +1,37 @@
+# Exceptions to Rust-core must be covered by an ADR.
+# ADR: rust-core-doctrine-hardening
+
+[adr_required]
+adr_dir = "docs/adr"
+require_for_zig = true
+require_for_backend_ts = true
+require_for_native_deps = true
+require_for_shell_debt = true
+
+native_deps = [
+  "openssl",
+  "openssl-sys",
+  "native-tls",
+  "bindgen",
+  "cc",
+  "pkg-config",
+  "cmake",
+  "libgit2-sys",
+]
+
+backend_ts_markers = [
+  "Bun.serve",
+  "hono",
+  "elysia",
+  "express",
+  "fastify",
+  "drizzle",
+  "@prisma/client",
+  "postgres",
+  "bullmq",
+  "@aws-sdk/client-s3",
+  "@biscuit-auth",
+]
+backend_ts_files = ["server.ts", "api.ts", "routes.ts"]
+exempt_paths = ["web/", "apps/"]
+release_paths = ["release/", "deploy/", "scripts/deploy"]

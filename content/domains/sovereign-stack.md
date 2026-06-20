@@ -1,0 +1,47 @@
+# Sovereign Stack
+
+Sovereignty is a system property, not a branding claim.
+
+## Default stance
+
+- Prefer open-source components with auditable code and standard protocols.
+- Avoid US hyperscalers and SaaS dependencies for core truth, runtime, storage,
+  auth, observability, and AI workflows.
+- Prefer EU providers with EU data residency and contractual clarity.
+- Keep self-hostable or provider-pluggable paths for critical capabilities.
+- Document every non-sovereign dependency as an explicit risk acceptance.
+
+## Sovereignty criteria
+
+A component is sovereign only when these properties are satisfied or explicitly
+accounted for:
+
+1. data residency is in the EU;
+2. the operator is not exposed to CLOUD Act-like foreign control for the data;
+3. the component is open-source or has an audited replacement path;
+4. deployment and export paths do not lock core truth into one provider.
+
+## License floor
+
+- Preferred: MIT, Apache-2.0, BSD-2/3, ISC.
+- Acceptable with review: MPL-2.0.
+- Requires legal/architecture validation: LGPL, GPL.
+- Forbidden by default: AGPL for network services, SSPL, BSL/source-available
+  traps, proprietary SDKs in core paths.
+
+## Provider posture
+
+- Clever Cloud is the default sovereign PaaS target.
+- Clever AI or EU/self-hostable model providers are preferred for runtime AI.
+- Provider-specific APIs stay behind interfaces and adapters.
+- No dependency may silently make AWS, GCP, Azure, Vercel, Netlify, Auth0,
+  Datadog, Algolia, Firebase, or equivalent SaaS part of the core system.
+
+## Gateable checks
+
+- dependency license audit;
+- registry/source allowlist;
+- no hardcoded US SaaS endpoints in core paths;
+- documented DPA/data-residency for external services;
+- export path for data and artifacts;
+- no secrets or PII in logs, traces, prompts, or release metadata.

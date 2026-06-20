@@ -6,8 +6,8 @@ mod init;
 use clap::Parser;
 use miette::{IntoDiagnostic, miette};
 
+use cli::{Cli, Command, HandoffAction, IncidentCommand, InspectAction, LibraryAction};
 use cos_matic::generate;
-use cli::{Cli, Command, IncidentCommand, LibraryAction};
 use orchestrator::automerge::Gate;
 use orchestrator::forge::{self, GithubForge, RepoId};
 use orchestrator::{automerge, deploy, dispatch, incident, pipeline};
@@ -76,6 +76,150 @@ fn main() -> miette::Result<()> {
                 Err(cos_matic::Error::GoalsFailed { failures }.into())
             }
         }
+        Command::Handoff { action } => match action {
+            HandoffAction::Validate { payload } => {
+                let report = cos_matic::handoff::validate_file(&payload)?;
+                print_handoff_report(&report);
+                if report.is_valid() {
+                    println!("ok: handoff payload is valid for planning");
+                    Ok(())
+                } else {
+                    Err(miette!(
+                        "handoff validation failed: {} error(s)",
+                        report
+                            .findings
+                            .iter()
+                            .filter(|finding| finding.severity
+                                == cos_matic::handoff::FindingSeverity::Error)
+                            .count()
+                    ))
+                }
+            }
+            HandoffAction::Plan { payload, dry_run } => {
+                if !dry_run {
+                    return Err(miette!(
+                        "handoff plan requires --dry-run; implementation execution is forbidden in MVP"
+                    ));
+                }
+                let plan = cos_matic::handoff::dry_run_plan_file(&payload)?;
+                print_handoff_report(&plan.report);
+                if !plan.report.is_valid() {
+                    return Err(miette!(
+                        "handoff dry-run refused: validation has blocking errors"
+                    ));
+                }
+                println!("dry-run gates:");
+                for gate in &plan.gates {
+                    println!("  - {gate}");
+                }
+                println!("dry-run tasks:");
+                for task in &plan.tasks {
+                    println!("  - {task}");
+                }
+                println!("ok: dry-run plan produced; no execution performed");
+                Ok(())
+            }
+        },
+        Command::Inspect { action } => match action {
+            InspectAction::AdrRequired { root, policy } => {
+                let policy = if let Some(path) = policy {
+                    cos_matic::inspect::load_adr_required_policy(&path)?
+                } else {
+                    cos_matic::inspect::default_adr_required_policy()
+                };
+                let report = cos_matic::inspect::inspect_adr_required(&root, &policy)?;
+                if report.is_clean() {
+                    println!(
+                        "ok: ADR coverage clean ({} file(s) checked)",
+                        report.checked_files
+                    );
+                    Ok(())
+                } else {
+                    for finding in &report.findings {
+                        eprintln!("{} [{}] {}", finding.path, finding.trigger, finding.reason);
+                    }
+                    Err(miette!(
+                        "ADR coverage failed: {} finding(s)",
+                        report.findings.len()
+                    ))
+                }
+            }
+            InspectAction::LanguageOwnership { root, policy } => {
+                let policy = if let Some(path) = policy {
+                    cos_matic::inspect::load_language_ownership_policy(&path)?
+                } else {
+                    cos_matic::inspect::default_language_ownership_policy()
+                };
+                let report = cos_matic::inspect::inspect_language_ownership(&root, &policy)?;
+                if report.is_clean() {
+                    println!(
+                        "ok: language ownership clean ({} file(s) checked)",
+                        report.checked_files
+                    );
+                    Ok(())
+                } else {
+                    for finding in &report.findings {
+                        eprintln!(
+                            "{} [{}:{}] {}",
+                            finding.path, finding.zone, finding.extension, finding.reason
+                        );
+                    }
+                    Err(miette!(
+                        "language ownership failed: {} finding(s)",
+                        report.findings.len()
+                    ))
+                }
+            }
+            InspectAction::FrontendStrict { root, policy } => {
+                let policy = if let Some(path) = policy {
+                    cos_matic::inspect::load_frontend_strict_policy(&path)?
+                } else {
+                    cos_matic::inspect::default_frontend_strict_policy()
+                };
+                let report = cos_matic::inspect::inspect_frontend_strict(&root, &policy)?;
+                if report.is_clean() {
+                    println!(
+                        "ok: frontend strict clean ({} file(s) checked)",
+                        report.checked_files
+                    );
+                    Ok(())
+                } else {
+                    for finding in &report.findings {
+                        eprintln!("{} {}", finding.path, finding.reason);
+                    }
+                    Err(miette!(
+                        "frontend strict failed: {} finding(s)",
+                        report.findings.len()
+                    ))
+                }
+            }
+            InspectAction::ShellDebt { root, policy } => {
+                let policy = if let Some(path) = policy {
+                    cos_matic::inspect::load_shell_debt_policy(&path)?
+                } else {
+                    cos_matic::inspect::default_shell_debt_policy()
+                };
+                let report = cos_matic::inspect::inspect_shell_debt(&root, &policy)?;
+                if report.is_clean() {
+                    println!(
+                        "ok: shell debt clean ({} script(s) checked)",
+                        report.checked_scripts
+                    );
+                    Ok(())
+                } else {
+                    for finding in &report.findings {
+                        eprintln!(
+                            "{} [{} line(s)] {}",
+                            finding.path, finding.lines, finding.reason
+                        );
+                    }
+                    Err(miette!(
+                        "shell debt failed: {} finding(s)",
+                        report.findings.len()
+                    ))
+                }
+            }
+        },
         Command::Incident {
             command:
                 IncidentCommand::Open {
@@ -383,6 +527,30 @@ fn main() -> miette::Result<()> {
                 }
             }
         }
+    }
+}
+
+/// Print a deterministic handoff validation summary.
+fn print_handoff_report(report: &cos_matic::handoff::HandoffReport) {
+    println!(
+        "handoff: id={} package={} hash={}",
+        report.handoff_id.as_deref().unwrap_or("<missing>"),
+        report.package_id.as_deref().unwrap_or("<missing>"),
+        report.package_hash.as_deref().unwrap_or("<missing>")
+    );
+    if let Some(goal) = &report.planning_goal {
+        println!("goal: {goal}");
+    }
+    if !report.requested_outputs.is_empty() {
+        println!("requested outputs: {}", report.requested_outputs.join(", "));
+    }
+    for finding in &report.findings {
+        eprintln!(
+            "{} [{}] {}",
+            finding.severity.label(),
+            finding.code,
+            finding.message
+        );
     }
 }
 

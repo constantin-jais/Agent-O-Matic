@@ -16,16 +16,52 @@ struct Builtin {
 /// The catalog. Ordered by descending priority for a stable `library list`.
 const BUILTINS: &[Builtin] = &[
     Builtin {
+        name: "stack-authority",
+        priority: 100,
+        description: "Rust owns durable capabilities; TS is web-only; Zig owns no layer.",
+        content: include_str!("../../../content/domains/stack-authority.md"),
+    },
+    Builtin {
+        name: "rust-core",
+        priority: 98,
+        description: "Rust-first core conventions, portability, and release-critical gates.",
+        content: include_str!("../../../content/domains/rust-core.md"),
+    },
+    Builtin {
+        name: "sovereign-stack",
+        priority: 96,
+        description: "Sovereignty, license, provider, and data-residency floor.",
+        content: include_str!("../../../content/domains/sovereign-stack.md"),
+    },
+    Builtin {
+        name: "artifact-first-release",
+        priority: 94,
+        description: "Immutable artifacts with evidence before deploy or distribution.",
+        content: include_str!("../../../content/domains/artifact-first-release.md"),
+    },
+    Builtin {
         name: "security-baseline",
         priority: 90,
         description: "Validate input at the boundary; never log secrets or PII.",
         content: include_str!("../../../content/domains/security-baseline.md"),
     },
     Builtin {
+        name: "biscuit-auth",
+        priority: 88,
+        description: "Attenuable Biscuit authorization patterns and multi-tenant floor.",
+        content: include_str!("../../../content/domains/biscuit-auth.md"),
+    },
+    Builtin {
         name: "four-axes",
         priority: 85,
         description: "Decide on Security > Quality > Performance > Completeness.",
         content: include_str!("../../../content/domains/four-axes.md"),
+    },
+    Builtin {
+        name: "web-boundary",
+        priority: 75,
+        description: "TypeScript/Bun boundaries: product UX, not durable ownership.",
+        content: include_str!("../../../content/domains/web-boundary.md"),
     },
     Builtin {
         name: "code-style",
@@ -40,10 +76,22 @@ const BUILTINS: &[Builtin] = &[
         content: include_str!("../../../content/domains/tdd.md"),
     },
     Builtin {
+        name: "testing-strategy",
+        priority: 63,
+        description: "Rust-first behavior, regression, contract, and artifact testing.",
+        content: include_str!("../../../content/domains/testing-strategy.md"),
+    },
+    Builtin {
         name: "agent-behavior",
         priority: 60,
         description: "Read real state before acting; verify before prescribing.",
         content: include_str!("../../../content/domains/agent-behavior.md"),
+    },
+    Builtin {
+        name: "native-escape-hatches",
+        priority: 58,
+        description: "Zig/C escape hatches behind Rust-owned portability only.",
+        content: include_str!("../../../content/domains/native-escape-hatches.md"),
     },
     Builtin {
         name: "anti-gold-plating",

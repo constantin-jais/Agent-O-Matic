@@ -1,0 +1,8 @@
+# Shell must remain temporary glue, not durable automation.
+# ADR: rust-core-doctrine-hardening
+
+[shell_debt]
+max_lines_without_adr = 50
+allowed_paths = ["scripts/"]
+forbidden_paths = ["crates/", "src/", "release/", "deploy/"]
+exception_paths = []

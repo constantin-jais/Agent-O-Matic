@@ -1,0 +1,10 @@
+# Frontend source must be TypeScript-only. Bun is a preferred toolchain,
+# not an architectural boundary.
+# ADR: rust-core-doctrine-hardening
+
+[frontend_strict]
+paths = ["web/", "apps/"]
+forbidden_js_extensions = ["js", "jsx", "mjs", "cjs"]
+forbidden_locks = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml"]
+require_bun_lock = true
+require_tsconfig_strict = true

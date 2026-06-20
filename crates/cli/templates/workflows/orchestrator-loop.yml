@@ -57,8 +57,20 @@ jobs:
           token: ${{ secrets.cosmatic_BOT_TOKEN || github.token }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build aom
-        run: cargo build --bin aom
+      - name: Build cosmatic
+        run: cargo build --bin cosmatic
+      - name: Quality gate — ADR coverage
+        run: ./target/debug/cosmatic inspect adr-required --root . --policy .cosmatic/adr-required.toml
+      - name: Quality gate — language ownership
+        run: ./target/debug/cosmatic inspect language-ownership --root . --policy .cosmatic/language-ownership.toml
+      - name: Quality gate — frontend strict
+        run: ./target/debug/cosmatic inspect frontend-strict --root . --policy .cosmatic/frontend-strict.toml
+      - name: Quality gate — shell debt
+        run: ./target/debug/cosmatic inspect shell-debt --root . --policy .cosmatic/shell-debt.toml
+      - name: Quality gate — goals
+        run: ./target/debug/cosmatic goals --manifest harness.toml
+      - name: Quality gate — generated config drift
+        run: ./target/debug/cosmatic generate --check --manifest harness.toml
 
       # --- dry-run: read-only. github.token is sufficient; no Claude needed. ---
       - name: Loop (dry-run)

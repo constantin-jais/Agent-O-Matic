@@ -1,6 +1,6 @@
 [package]
 name = "{{name}}"
-builtins = ["tdd", "code-style"]
+builtins = ["stack-authority", "rust-core", "sovereign-stack", "artifact-first-release", "security-baseline", "biscuit-auth", "web-boundary", "testing-strategy", "tdd", "code-style"]
 
 [[domains]]
 name = "core-values"
@@ -9,7 +9,16 @@ content_file = "domains/core-values.md"
 
 [[profiles]]
 name = "default"
-domains = ["tdd", "code-style", "core-values"]
+domains = ["stack-authority", "rust-core", "sovereign-stack", "artifact-first-release", "security-baseline", "biscuit-auth", "web-boundary", "testing-strategy", "tdd", "code-style", "core-values"]
+
+[[goals]]
+kind = "hard_gate"
+check = "no-dead-domains"
+
+[[goals]]
+kind = "hard_gate"
+check = "require-domains"
+domains = ["stack-authority", "rust-core", "sovereign-stack", "artifact-first-release"]
 
 {{adapter_targets}}
 

@@ -45,6 +45,18 @@ pub enum Command {
         manifest: PathBuf,
     },
 
+    /// Validate or dry-run plan a Rumble-to-Bolt handoff payload (never executes).
+    Handoff {
+        #[command(subcommand)]
+        action: HandoffAction,
+    },
+
+    /// Run deterministic repository inspections.
+    Inspect {
+        #[command(subcommand)]
+        action: InspectAction,
+    },
+
     /// Incident handling (open an idempotent GitHub issue).
     Incident {
         #[command(subcommand)]
@@ -154,6 +166,72 @@ pub enum LibraryAction {
     Show {
         /// Built-in name (see `cosmatic library list`).
         name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum HandoffAction {
+    /// Validate a handoff JSON payload and print findings.
+    Validate {
+        /// Path to the handoff JSON payload.
+        payload: PathBuf,
+    },
+
+    /// Produce a planning-only dry-run report from a valid handoff payload.
+    Plan {
+        /// Path to the handoff JSON payload.
+        payload: PathBuf,
+
+        /// Required safety flag: planning only, no implementation execution.
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum InspectAction {
+    /// Check that exceptions to Rust-core have ADR coverage.
+    AdrRequired {
+        /// Repository root to inspect.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Optional TOML policy. If omitted, the strict Rust-core default is used.
+        #[arg(long)]
+        policy: Option<PathBuf>,
+    },
+
+    /// Check that languages stay within their architectural ownership zones.
+    LanguageOwnership {
+        /// Repository root to inspect.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Optional TOML policy. If omitted, the strict Rust-core default is used.
+        #[arg(long)]
+        policy: Option<PathBuf>,
+    },
+
+    /// Check that frontend source is TypeScript-only and Bun-toolchain clean.
+    FrontendStrict {
+        /// Repository root to inspect.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Optional TOML policy. If omitted, the strict Rust-core default is used.
+        #[arg(long)]
+        policy: Option<PathBuf>,
+    },
+
+    /// Check that shell remains temporary glue, not durable automation.
+    ShellDebt {
+        /// Repository root to inspect.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Optional TOML policy. If omitted, the strict Rust-core default is used.
+        #[arg(long)]
+        policy: Option<PathBuf>,
     },
 }
 

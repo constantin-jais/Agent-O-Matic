@@ -85,6 +85,30 @@ profile = "default"
         const TEMPLATE: &str = include_str!("../templates/workflows/orchestrator-loop.yml");
         TEMPLATE.to_string() // No placeholders; as-is.
     }
+
+    /// Render .cosmatic/adr-required.toml template.
+    fn render_adr_required_toml(&self) -> String {
+        const TEMPLATE: &str = include_str!("../templates/policies/adr-required.toml");
+        TEMPLATE.to_string() // No placeholders; as-is.
+    }
+
+    /// Render .cosmatic/language-ownership.toml template.
+    fn render_language_ownership_toml(&self) -> String {
+        const TEMPLATE: &str = include_str!("../templates/policies/language-ownership.toml");
+        TEMPLATE.to_string() // No placeholders; as-is.
+    }
+
+    /// Render .cosmatic/frontend-strict.toml template.
+    fn render_frontend_strict_toml(&self) -> String {
+        const TEMPLATE: &str = include_str!("../templates/policies/frontend-strict.toml");
+        TEMPLATE.to_string() // No placeholders; as-is.
+    }
+
+    /// Render .cosmatic/shell-debt.toml template.
+    fn render_shell_debt_toml(&self) -> String {
+        const TEMPLATE: &str = include_str!("../templates/policies/shell-debt.toml");
+        TEMPLATE.to_string() // No placeholders; as-is.
+    }
 }
 
 /// Validate the autonomy level.
@@ -291,6 +315,11 @@ pub fn scaffold(config: &InitConfig, target_dir: &Path) -> Result<()> {
     let harness_path = target_dir.join("harness.toml");
     let domains_dir = target_dir.join("domains");
     let core_values_path = domains_dir.join("core-values.md");
+    let policy_dir = target_dir.join(".cosmatic");
+    let adr_policy_path = policy_dir.join("adr-required.toml");
+    let language_policy_path = policy_dir.join("language-ownership.toml");
+    let frontend_policy_path = policy_dir.join("frontend-strict.toml");
+    let shell_policy_path = policy_dir.join("shell-debt.toml");
     let workflow_path = target_dir.join(".github/workflows/orchestrator-loop.yml");
 
     let mut skipped = Vec::new();
@@ -301,6 +330,18 @@ pub fn scaffold(config: &InitConfig, target_dir: &Path) -> Result<()> {
     }
     if core_values_path.exists() {
         skipped.push("domains/core-values.md");
+    }
+    if adr_policy_path.exists() {
+        skipped.push(".cosmatic/adr-required.toml");
+    }
+    if language_policy_path.exists() {
+        skipped.push(".cosmatic/language-ownership.toml");
+    }
+    if frontend_policy_path.exists() {
+        skipped.push(".cosmatic/frontend-strict.toml");
+    }
+    if shell_policy_path.exists() {
+        skipped.push(".cosmatic/shell-debt.toml");
     }
     if config.autonomy_level != "L0" && workflow_path.exists() {
         skipped.push(".github/workflows/orchestrator-loop.yml");
@@ -335,6 +376,58 @@ pub fn scaffold(config: &InitConfig, target_dir: &Path) -> Result<()> {
         println!("created  {}", core_values_path.display());
     }
 
+    // Create .cosmatic/adr-required.toml if not present.
+    if !adr_policy_path.exists() {
+        fs::create_dir_all(&policy_dir)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to create {}: {}", policy_dir.display(), e))?;
+
+        let content = config.render_adr_required_toml();
+        fs::write(&adr_policy_path, content)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to write {}: {}", adr_policy_path.display(), e))?;
+        println!("created  {}", adr_policy_path.display());
+    }
+
+    // Create .cosmatic/language-ownership.toml if not present.
+    if !language_policy_path.exists() {
+        fs::create_dir_all(&policy_dir)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to create {}: {}", policy_dir.display(), e))?;
+
+        let content = config.render_language_ownership_toml();
+        fs::write(&language_policy_path, content)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to write {}: {}", language_policy_path.display(), e))?;
+        println!("created  {}", language_policy_path.display());
+    }
+
+    // Create .cosmatic/frontend-strict.toml if not present.
+    if !frontend_policy_path.exists() {
+        fs::create_dir_all(&policy_dir)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to create {}: {}", policy_dir.display(), e))?;
+
+        let content = config.render_frontend_strict_toml();
+        fs::write(&frontend_policy_path, content)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to write {}: {}", frontend_policy_path.display(), e))?;
+        println!("created  {}", frontend_policy_path.display());
+    }
+
+    // Create .cosmatic/shell-debt.toml if not present.
+    if !shell_policy_path.exists() {
+        fs::create_dir_all(&policy_dir)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to create {}: {}", policy_dir.display(), e))?;
+
+        let content = config.render_shell_debt_toml();
+        fs::write(&shell_policy_path, content)
+            .into_diagnostic()
+            .map_err(|e| miette!("failed to write {}: {}", shell_policy_path.display(), e))?;
+        println!("created  {}", shell_policy_path.display());
+    }
+
     // Create workflow for L1/L2/L3.
     if config.autonomy_level != "L0" && !workflow_path.exists() {
         fs::create_dir_all(workflow_path.parent().unwrap())
@@ -360,14 +453,25 @@ pub fn print_checklist(config: &InitConfig) {
     println!();
 
     println!("[ ] 1. Commit and push this scaffold to your repository.");
-    println!("[ ] 2. Review the generated harness.toml and domains/.");
-    println!("[ ] 3. Run: cosmatic generate --check");
+    println!("[ ] 2. Review the generated harness.toml, domains/, and .cosmatic/.");
+    println!(
+        "[ ] 3. Run: cosmatic inspect adr-required --root . --policy .cosmatic/adr-required.toml"
+    );
+    println!(
+        "[ ] 4. Run: cosmatic inspect language-ownership --root . --policy .cosmatic/language-ownership.toml"
+    );
+    println!(
+        "[ ] 5. Run: cosmatic inspect frontend-strict --root . --policy .cosmatic/frontend-strict.toml"
+    );
+    println!("[ ] 6. Run: cosmatic inspect shell-debt --root . --policy .cosmatic/shell-debt.toml");
+    println!("[ ] 7. Run: cosmatic goals --manifest harness.toml");
+    println!("[ ] 8. Run: cosmatic generate --check");
 
     if config.autonomy_level != "L0" {
-        println!("[ ] 4. If this is a sandbox repo (not your real repo),");
+        println!("[ ] 9. If this is a sandbox repo (not your real repo),");
         println!("       set repository variable cosmatic_SANDBOX=true in Settings > Variables.");
         if config.autonomy_level != "L1" {
-            println!("[ ] 5. Set repository secrets:");
+            println!("[ ] 10. Set repository secrets:");
             println!("       - cosmatic_BOT_TOKEN (fine-grained PAT for git push, PR, merge)");
             println!("       - ANTHROPIC_API_KEY (only if using fixer=claude)");
             println!(
@@ -378,17 +482,17 @@ pub fn print_checklist(config: &InitConfig) {
     }
 
     if config.autonomy_level == "L2" {
-        println!("[ ] 6. Enable branch protection and require human approval before merge.");
-        println!("[ ] 7. Configure required CI checks (GitHub Actions).");
+        println!("[ ] 11. Enable branch protection and require human approval before merge.");
+        println!("[ ] 12. Configure required CI checks (GitHub Actions).");
     } else if config.autonomy_level == "L3" {
-        println!("[ ] 6. Enable branch protection with required CI checks.");
+        println!("[ ] 11. Enable branch protection with required CI checks.");
         println!("       Do not require human approval for the bot merge path unless");
         println!("       you intentionally want gated L2-style operation.");
-        println!("[ ] 7. Confirm the bot can merge after the gate is green.");
+        println!("[ ] 12. Confirm the bot can merge after the gate is green.");
     }
 
     if config.autonomy_level == "L3" {
-        println!("[ ] 8. Review docs/adr/0026-architecture-targets-seams-isolation-durability.md");
+        println!("[ ] 13. Review docs/adr/0026-architecture-targets-seams-isolation-durability.md");
         println!("       (typed policy & isolation) before L3.");
     }
 
