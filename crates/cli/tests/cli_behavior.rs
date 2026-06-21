@@ -167,6 +167,100 @@ profile = "default"
 // cover the orchestrator arms of `main.rs`, which no library test reaches.
 
 #[test]
+fn maturity_validate_json_reports_contract_first_claim() {
+    let tmp = tempfile::tempdir().unwrap();
+    let claim = tmp.path().join("maturity.json");
+    fs::write(&claim, maturity_claim("R1", "R3", r#""core":{"level":"R1","status":"warn","evidence":["crates/core/src/p0_contract.rs"]}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["maturity", "validate", claim.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic maturity validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("\"project\": \"rumble-lm\""),
+        "stdout:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("\"current_level\": \"R1\""),
+        "stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn maturity_validate_rejects_mobile_without_portable_core() {
+    let tmp = tempfile::tempdir().unwrap();
+    let claim = tmp.path().join("maturity.json");
+    fs::write(
+        &claim,
+        maturity_claim(
+            "R7",
+            "R10",
+            r#""core":{"level":"R0","status":"blocked","evidence":[]}"#,
+        ),
+    )
+    .unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["maturity", "validate", claim.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic maturity validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("mobile_without_portable_core"),
+        "stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn maturity_report_summarizes_directory() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("lm.json"), maturity_claim("R1", "R3", r#""core":{"level":"R1","status":"warn","evidence":["crates/core/src/p0_contract.rs"]}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["maturity", "report", tmp.path().to_str().unwrap()])
+        .output()
+        .expect("spawn cosmatic maturity report");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(stdout.contains("rumble-lm"), "stdout:\n{stdout}");
+    assert!(stdout.contains("current=R1"), "stdout:\n{stdout}");
+}
+
+fn maturity_claim(current: &str, target: &str, core_axis: &str) -> String {
+    format!(
+        r#"{{
+          "format":"rumble.delivery_maturity.v0.1",
+          "project":{{"name":"rumble-lm","layer":"Rumble","role":"Pedagogy and grounding dojo","maturity_mode":"contract-first"}},
+          "claimed_at":"2026-06-30T00:00:00Z",
+          "current_level":"{current}","target_level":"{target}","next_level":"R2",
+          "promotion_candidate":{{"from":"R1","to":"R2","status":"blocked","blocked_by":["portable-core gate missing"]}},
+          "axes":{{
+            "spec":{{"level":"R1","status":"pass","evidence":["README.md"]}},
+            "contracts":{{"level":"R1","status":"pass","evidence":["contract.md"]}},
+            {core_axis},
+            "security":{{"level":"R1","status":"warn","evidence":["auth.md"]}},
+            "ux":{{"level":"R0","status":"blocked","evidence":[]}},
+            "persistence":{{"level":"R0","status":"blocked","evidence":[]}},
+            "orchestration":{{"level":"R1","status":"warn","evidence":["handoff.md"]}},
+            "inspection":{{"level":"R0","status":"warn","evidence":[]}},
+            "release":{{"level":"R0","status":"blocked","evidence":[]}},
+            "operations":{{"level":"R0","status":"blocked","evidence":[]}},
+            "commercial_readiness":{{"level":"R0","status":"blocked","evidence":[]}},
+            "learning_yield":{{"level":"R1","status":"pass","evidence":["decision-log.md"]}}
+          }},
+          "platform_readiness":{{"cli":"none","api":"proof","web":"none","desktop":"none","mobile":"none","self_hosted":"planned","cloud_eu":"planned"}},
+          "evidence":[{{"kind":"doc","ref":"README.md","status":"present"}}],
+          "learning_yield":[{{"kind":"evidence_produced","description":"The claim proves maturity reporting.","owner":"harness"}}]
+        }}"#
+    )
+}
+
+#[test]
 fn handoff_validate_json_reports_valid_payload() {
     let tmp = tempfile::tempdir().unwrap();
     let payload = tmp.path().join("handoff.json");

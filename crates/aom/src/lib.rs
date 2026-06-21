@@ -25,6 +25,7 @@ pub mod inspect;
 mod ir;
 pub mod library;
 mod lock;
+pub mod maturity;
 mod merge;
 mod paths;
 pub mod render;

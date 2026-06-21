@@ -6,7 +6,9 @@ mod init;
 use clap::Parser;
 use miette::{IntoDiagnostic, miette};
 
-use cli::{Cli, Command, HandoffAction, IncidentCommand, InspectAction, LibraryAction};
+use cli::{
+    Cli, Command, HandoffAction, IncidentCommand, InspectAction, LibraryAction, MaturityAction,
+};
 use cos_matic::generate;
 use orchestrator::automerge::Gate;
 use orchestrator::forge::{self, GithubForge, RepoId};
@@ -76,6 +78,50 @@ fn main() -> miette::Result<()> {
                 Err(cos_matic::Error::GoalsFailed { failures }.into())
             }
         }
+        Command::Maturity { action } => match action {
+            MaturityAction::Validate { claim, json } => {
+                let report = cos_matic::maturity::validate_file(&claim)?;
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&report).into_diagnostic()?
+                    );
+                } else {
+                    print_maturity_report(&report);
+                }
+                if report.is_valid() {
+                    Ok(())
+                } else {
+                    Err(miette!(
+                        "maturity validation failed: {} error(s)",
+                        report
+                            .findings
+                            .iter()
+                            .filter(|finding| finding.severity
+                                == cos_matic::maturity::FindingSeverity::Error)
+                            .count()
+                    ))
+                }
+            }
+            MaturityAction::Report { dir, json } => {
+                let report = cos_matic::maturity::report_dir(&dir)?;
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&report).into_diagnostic()?
+                    );
+                } else {
+                    print_maturity_workspace_report(&report);
+                }
+                if report.is_valid() {
+                    Ok(())
+                } else {
+                    Err(miette!(
+                        "maturity report contains blocking validation errors"
+                    ))
+                }
+            }
+        },
         Command::Handoff { action } => match action {
             HandoffAction::Validate { payload, json } => {
                 let report = cos_matic::handoff::validate_file(&payload)?;
@@ -564,6 +610,51 @@ fn main() -> miette::Result<()> {
 fn exit_refused(reason: &str) -> ! {
     eprintln!("refused: {reason}");
     std::process::exit(2);
+}
+
+/// Print a deterministic maturity validation summary.
+fn print_maturity_report(report: &cos_matic::maturity::MaturityReport) {
+    println!(
+        "{}: current={} target={} status={}",
+        report.project, report.current_level, report.target_level, report.status
+    );
+    if let Some(next) = report.next_level {
+        println!("next: {next}");
+    }
+    if !report.blocked_by.is_empty() {
+        println!("blocked by:");
+        for blocker in &report.blocked_by {
+            println!("  - {blocker}");
+        }
+    }
+    println!(
+        "evidence: {} ref(s), learning_yield: {} item(s)",
+        report.evidence_count, report.learning_yield_count
+    );
+    for finding in &report.findings {
+        eprintln!(
+            "{:?} [{}] {}",
+            finding.severity, finding.code, finding.detail
+        );
+    }
+}
+
+fn print_maturity_workspace_report(report: &cos_matic::maturity::MaturityWorkspaceReport) {
+    for item in &report.reports {
+        println!(
+            "{:<22} current={:<3} target={:<3} status={}",
+            item.project, item.current_level, item.target_level, item.status
+        );
+        if !item.blocked_by.is_empty() {
+            println!("  blocked_by: {}", item.blocked_by.join("; "));
+        }
+        for finding in &item.findings {
+            eprintln!(
+                "{} {:?} [{}] {}",
+                item.project, finding.severity, finding.code, finding.detail
+            );
+        }
+    }
 }
 
 /// Print a deterministic handoff validation summary.

@@ -89,6 +89,11 @@ pub enum Error {
     #[diagnostic(code(aom::invalid_handoff))]
     InvalidHandoff { message: String },
 
+    /// A Rumble delivery maturity claim could not be parsed or validated as input.
+    #[error("invalid maturity claim: {message}")]
+    #[diagnostic(code(aom::invalid_maturity))]
+    InvalidMaturity { message: String },
+
     /// One or more hard-gate goals failed.
     #[error("hard gate(s) failed:\n{}", .failures.join("\n"))]
     #[diagnostic(code(aom::goals_failed))]

@@ -45,6 +45,12 @@ pub enum Command {
         manifest: PathBuf,
     },
 
+    /// Validate or report Rumble delivery maturity claims (read-only; never promotes).
+    Maturity {
+        #[command(subcommand)]
+        action: MaturityAction,
+    },
+
     /// Validate or dry-run plan a Rumble-to-Bolt handoff payload (never executes).
     Handoff {
         #[command(subcommand)]
@@ -166,6 +172,29 @@ pub enum LibraryAction {
     Show {
         /// Built-in name (see `cosmatic library list`).
         name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MaturityAction {
+    /// Validate one Rumble delivery maturity claim JSON file.
+    Validate {
+        /// Path to a rumble.delivery_maturity.v0.1 JSON claim.
+        claim: PathBuf,
+
+        /// Print a machine-readable JSON report.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Validate every maturity claim JSON file in a directory and print a summary.
+    Report {
+        /// Directory containing maturity claim JSON files.
+        dir: PathBuf,
+
+        /// Print a machine-readable JSON report.
+        #[arg(long)]
+        json: bool,
     },
 }
 
