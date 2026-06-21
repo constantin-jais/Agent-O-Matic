@@ -6,6 +6,15 @@
 
 ---
 
+## Stack Role
+
+- **Maturity:** `usable`, moving toward `trusted` as gates and evidence harden.
+- **Current increment:** P4 orchestration integrated.
+- **Learning value:** deterministic planning, refusals, safe writes, policy gates, and auditable agentic work.
+- **Next quality step:** keep planning/refusal/evidence paths trusted before expanding runtime execution.
+
+See the ecosystem cockpit in [`constantin-jais/ecosystem/status.md`](https://github.com/constantin-jais/constantin-jais/blob/main/ecosystem/status.md).
+
 ## Purpose
 
 `cos-matic` is the central orchestrator of the ecosystem. It receives goals, applies policy gates, selects tools, sequences actions, and records decisions.
