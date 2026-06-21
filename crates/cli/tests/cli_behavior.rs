@@ -22,6 +22,58 @@ fn repo_root() -> std::path::PathBuf {
 }
 
 #[test]
+fn cli_help_uses_cosmatic_name() {
+    let out = Command::new(COSMATIC)
+        .arg("--help")
+        .output()
+        .expect("spawn cosmatic --help");
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("Usage: cosmatic <COMMAND>"),
+        "help should advertise the installed command name; stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn live_loop_smoke_uses_cosmatic_binary() {
+    let script = fs::read_to_string(repo_root().join("scripts/live-loop-smoke.sh"))
+        .expect("read live-loop-smoke.sh");
+
+    assert!(
+        script.contains("--bin cosmatic"),
+        "live smoke script must run the real binary target; script:\n{script}"
+    );
+    assert!(
+        !script.contains("--bin aom"),
+        "live smoke script must not reference the stale aom binary target"
+    );
+}
+
+#[test]
+fn root_harness_is_present_and_in_sync() {
+    let root = repo_root();
+    let manifest = root.join("harness.toml");
+    assert!(manifest.exists(), "root harness.toml should exist");
+
+    let out = Command::new(COSMATIC)
+        .args(["generate", "--check", "--manifest"])
+        .arg(&manifest)
+        .current_dir(&root)
+        .output()
+        .expect("spawn cosmatic generate --check --manifest harness.toml");
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "root harness should be in sync\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
 fn check_prints_files_up_to_date_message() {
     // The committed example is in sync, so `--check` must exit 0 and print the
     // file-count message. Pins the "N file(s) up to date" wording — a refactor
@@ -147,6 +199,101 @@ fn handoff_validate_json_reports_valid_payload() {
         stdout.contains("\"handoff_id\": \"h\""),
         "stdout:\n{stdout}"
     );
+}
+
+#[test]
+fn handoff_validate_uses_canonical_execution_policy_refusal_code() {
+    let tmp = tempfile::tempdir().unwrap();
+    let payload = tmp.path().join("handoff.json");
+    fs::write(&payload, handoff_payload_with(r#""execution_policy":{"planning_only":false,"allow_execution":true,"requires_human_approval_for_execution":false}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["handoff", "validate", payload.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic handoff validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("execution_policy_forbidden"),
+        "stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn handoff_validate_rejects_artifact_ref_without_hash() {
+    let tmp = tempfile::tempdir().unwrap();
+    let payload = tmp.path().join("handoff.json");
+    fs::write(&payload, handoff_payload_with(r#""package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","artifact_reference_id":"artifact:p","items":[{"section_id":"s","revision_id":"r"}]}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["handoff", "validate", payload.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic handoff validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("artifact_integrity_failed"),
+        "stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn handoff_validate_rejects_sovereignty_violation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let payload = tmp.path().join("handoff.json");
+    fs::write(&payload, handoff_payload_with(r#""constraints":{"sovereignty":"violated: mandatory US SaaS for core truth","data_residency":"unknown","non_goals":[],"requires_external_saas":true}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["handoff", "validate", payload.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic handoff validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("sovereignty_policy_violation"),
+        "stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn handoff_validate_rejects_handoff_hash_conflict() {
+    let tmp = tempfile::tempdir().unwrap();
+    let payload = tmp.path().join("handoff.json");
+    fs::write(&payload, handoff_payload_with(r#""idempotency":{"prior_payload_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111","payload_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222"}"#)).unwrap();
+
+    let out = Command::new(COSMATIC)
+        .args(["handoff", "validate", payload.to_str().unwrap(), "--json"])
+        .output()
+        .expect("spawn cosmatic handoff validate --json");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("handoff_hash_conflict"),
+        "stdout:\n{stdout}"
+    );
+}
+
+fn handoff_payload_with(replacement_field: &str) -> String {
+    let mut fields = vec![
+        r#""format":"canvas.bolt_handoff.v0.1""#,
+        r#""kind":"planning_request""#,
+        r#""source":{"product":"rumble-canvas","workspace_id":"w","handoff_id":"h","created_by":"a","created_at":"2026-06-30T00:00:00Z"}"#,
+        r#""package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","artifact_reference_id":null,"items":[{"section_id":"s","revision_id":"r"}]}"#,
+        r#""planning_scope":{"mode":"full_package","target_objects":[],"excluded_objects":[],"goal":"Plan only"}"#,
+        r#""spec_context":{}"#,
+        r#""traceability_links":[{"source_type":"journey","source_id":"j","target_type":"action","target_id":"a","relation_type":"implements"}]"#,
+        r#""active_waivers":[]"#,
+        r#""open_questions":[]"#,
+        r#""risks":[]"#,
+        r#""capability_candidates":[]"#,
+        r#""constraints":{"sovereignty":"self-hostable","data_residency":"EU","non_goals":[]}"#,
+        r#""requested_outputs":["implementation_plan"]"#,
+        r#""execution_policy":{"planning_only":true,"allow_execution":false,"requires_human_approval_for_execution":true}"#,
+    ];
+    let key = replacement_field.split(':').next().unwrap_or_default();
+    fields.retain(|field| !field.starts_with(key));
+    fields.push(replacement_field);
+    format!("{{{}}}", fields.join(","))
 }
 
 #[test]

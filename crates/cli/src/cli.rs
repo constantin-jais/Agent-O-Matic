@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "aom",
+    name = "cosmatic",
     version,
     about = "cos-matic: compile one source into many AI-agent configs (safe-write, drift-aware)."
 )]

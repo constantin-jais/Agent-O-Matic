@@ -1,0 +1,15 @@
+---
+description: core-values
+alwaysApply: true
+---
+
+# cos-matic Session Doctrine
+
+- Treat `cosmatic` as the local source of truth for agent configuration, gates,
+  and repeatable session bootstrap.
+- Start work from observed repository state: git status, generated-config drift,
+  declared goals, then targeted tests.
+- Keep autonomous actions bounded: dry-run is routine; live loop is sandbox-only
+  and requires scoped service credentials.
+- Prefer deterministic gates over memory. If an instruction matters across
+  sessions, put it in `harness.toml`, a domain file, an ADR, or a test.

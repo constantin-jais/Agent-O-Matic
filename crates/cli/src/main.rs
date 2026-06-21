@@ -295,6 +295,9 @@ fn main() -> miette::Result<()> {
                 allowlist: vec![repo_id.clone()],
                 max_attempts: 1,
             };
+            if !env.enabled {
+                exit_refused("dispatch is disabled (kill-switch)");
+            }
             let req = dispatch::FixRequest {
                 issue,
                 title,
@@ -340,6 +343,9 @@ fn main() -> miette::Result<()> {
                 allowlist: vec![repo_id.clone()],
                 max_merges: 1,
             };
+            if !env.enabled {
+                exit_refused("auto-merge is disabled (kill-switch)");
+            }
             let req = automerge::MergeRequest {
                 branch,
                 repo: repo_id.clone(),
@@ -385,6 +391,14 @@ fn main() -> miette::Result<()> {
         }
         Command::Deploy { target, repo } => {
             let repo_id = resolve_repo(repo.as_deref())?;
+            let env = deploy::DeployEnvelope {
+                enabled: std::env::var_os("cosmatic_DEPLOY_DISABLED").is_none(),
+                allowlist: vec![repo_id.clone()],
+                max_deploys: 1,
+            };
+            if !env.enabled {
+                exit_refused("deploy is disabled (kill-switch)");
+            }
             let cmd = |key: &str| -> miette::Result<String> {
                 std::env::var(key)
                     .map_err(|_| miette!("set {key} (the deploy is configured by command)"))
@@ -396,11 +410,6 @@ fn main() -> miette::Result<()> {
             };
             let smoke = deploy::CommandSmoke {
                 smoke_cmd: cmd("cosmatic_DEPLOY_SMOKE")?,
-            };
-            let env = deploy::DeployEnvelope {
-                enabled: std::env::var_os("cosmatic_DEPLOY_DISABLED").is_none(),
-                allowlist: vec![repo_id.clone()],
-                max_deploys: 1,
             };
             let req = deploy::DeployRequest {
                 target,
@@ -490,6 +499,9 @@ fn main() -> miette::Result<()> {
                 allowlist: vec![repo_id.clone()],
                 max_iterations,
             };
+            if !env.enabled {
+                exit_refused("loop is disabled (kill-switch)");
+            }
             let req = pipeline::LoopRequest {
                 issue,
                 title,
@@ -547,6 +559,11 @@ fn main() -> miette::Result<()> {
             }
         }
     }
+}
+
+fn exit_refused(reason: &str) -> ! {
+    eprintln!("refused: {reason}");
+    std::process::exit(2);
 }
 
 /// Print a deterministic handoff validation summary.

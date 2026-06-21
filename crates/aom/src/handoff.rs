@@ -260,6 +260,7 @@ fn validate_payload(payload: &Value) -> HandoffReport {
         "missing_package_version",
     );
     validate_package_hash(&mut findings, package_hash.as_deref());
+    validate_artifact_integrity(payload, &mut findings);
     validate_non_empty_array(
         &mut findings,
         payload,
@@ -291,6 +292,8 @@ fn validate_payload(payload: &Value) -> HandoffReport {
     validate_blockers(payload, &mut findings);
     validate_risks(payload, &mut findings);
     validate_capability_candidates(payload, &mut findings);
+    validate_sovereignty(payload, &mut findings);
+    validate_handoff_hash_conflict(payload, &mut findings);
     validate_execution_policy(payload, &mut findings);
 
     let requested_outputs = array_strings_at(payload, &["requested_outputs"]);
@@ -321,34 +324,20 @@ fn validate_execution_policy(payload: &Value, findings: &mut Vec<HandoffFinding>
         &["execution_policy", "requires_human_approval_for_execution"],
     );
 
-    if planning_only != Some(true) {
+    if planning_only != Some(true)
+        || allow_execution != Some(false)
+        || requires_human_approval != Some(true)
+    {
         findings.push(error(
-            "planning_only_required",
-            "execution_policy.planning_only must be true".to_string(),
-        ));
-    }
-    if allow_execution != Some(false) {
-        findings.push(error(
-            "execution_forbidden",
-            "execution_policy.allow_execution must be false".to_string(),
-        ));
-    }
-    if requires_human_approval != Some(true) {
-        findings.push(error(
-            "human_approval_required",
-            "execution_policy.requires_human_approval_for_execution must be true".to_string(),
+            "execution_policy_forbidden",
+            "P0 handoffs must be planning-only, forbid execution, and require human approval for any future execution".to_string(),
         ));
     }
 }
 
 fn validate_package_hash(findings: &mut Vec<HandoffFinding>, hash: Option<&str>) {
     match hash {
-        Some(value)
-            if value.starts_with("sha256:")
-                && value.len() == "sha256:".len() + 64
-                && value["sha256:".len()..]
-                    .chars()
-                    .all(|c| c.is_ascii_hexdigit()) => {}
+        Some(value) if is_valid_sha256(value) => {}
         Some(value) => findings.push(error(
             "invalid_package_hash",
             format!("package_hash must be sha256:<64 hex chars>, got `{value}`"),
@@ -360,15 +349,60 @@ fn validate_package_hash(findings: &mut Vec<HandoffFinding>, hash: Option<&str>)
     }
 }
 
+fn validate_artifact_integrity(payload: &Value, findings: &mut Vec<HandoffFinding>) {
+    let artifact_reference_id = string_at(payload, &["package", "artifact_reference_id"]);
+    let Some(artifact_reference_id) = artifact_reference_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+
+    if string_at(payload, &["package", "artifact_hash"])
+        .as_deref()
+        .is_some_and(is_valid_sha256)
+    {
+        return;
+    }
+
+    let has_matching_artifact_ref = array_at(payload, &["artifact_refs"])
+        .iter()
+        .any(|artifact| {
+            let ref_id = string_field(artifact, "artifact_reference_id")
+                .or_else(|| string_field(artifact, "artifact_id"));
+            let hash =
+                string_field(artifact, "artifact_hash").or_else(|| string_field(artifact, "hash"));
+            ref_id.as_deref() == Some(artifact_reference_id)
+                && hash.as_deref().is_some_and(is_valid_sha256)
+        });
+
+    if !has_matching_artifact_ref {
+        findings.push(error(
+            "artifact_integrity_failed",
+            "package artifact_reference_id requires package.artifact_hash or matching artifact_refs[].hash"
+                .to_string(),
+        ));
+    }
+}
+
+fn is_valid_sha256(value: &str) -> bool {
+    value.starts_with("sha256:")
+        && value.len() == "sha256:".len() + 64
+        && value["sha256:".len()..]
+            .chars()
+            .all(|c| c.is_ascii_hexdigit())
+}
+
 fn validate_waivers(payload: &Value, findings: &mut Vec<HandoffFinding>) {
     for waiver in array_at(payload, &["active_waivers"]) {
-        if let Some(expires_at) = string_field(waiver, "expires_at") {
-            if expires_at.as_str() < "2026-06-30T00:00:00Z" {
-                findings.push(error(
-                    "expired_waiver",
-                    format!("waiver expired at `{expires_at}`"),
-                ));
-            }
+        if let Some(expires_at) = string_field(waiver, "expires_at")
+            && expires_at.as_str() < "2026-06-30T00:00:00Z"
+        {
+            findings.push(error(
+                "expired_waiver",
+                format!("waiver expired at `{expires_at}`"),
+            ));
         }
     }
 }
@@ -422,6 +456,49 @@ fn validate_capability_candidates(payload: &Value, findings: &mut Vec<HandoffFin
                 "capability candidate has no proposed_owner_layer".to_string(),
             ));
         }
+    }
+}
+
+fn validate_sovereignty(payload: &Value, findings: &mut Vec<HandoffFinding>) {
+    let constraints = value_at(payload, &["constraints"]);
+    let sovereignty = string_at(payload, &["constraints", "sovereignty"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let requires_external_saas = bool_at(payload, &["constraints", "requires_external_saas"]);
+    let pii_in_logs_allowed = bool_at(payload, &["constraints", "pii_in_logs_allowed"]);
+    let forbidden_dependencies = value_at(payload, &["constraints", "forbidden_dependencies"])
+        .and_then(Value::as_array)
+        .is_some_and(|values| !values.is_empty());
+
+    let explicit_violation = ["violated", "mandatory us saas", "opaque storage", "non-eu"]
+        .iter()
+        .any(|needle| sovereignty.contains(needle));
+
+    if constraints.is_some()
+        && (explicit_violation
+            || requires_external_saas == Some(true)
+            || pii_in_logs_allowed == Some(true)
+            || forbidden_dependencies)
+    {
+        findings.push(error(
+            "sovereignty_policy_violation",
+            "handoff violates sovereignty policy: no mandatory non-sovereign SaaS, opaque core-truth storage, forbidden dependencies, or PII in logs".to_string(),
+        ));
+    }
+}
+
+fn validate_handoff_hash_conflict(payload: &Value, findings: &mut Vec<HandoffFinding>) {
+    let current = string_at(payload, &["idempotency", "payload_hash"])
+        .or_else(|| string_at(payload, &["package", "package_hash"]));
+    let prior = string_at(payload, &["idempotency", "prior_payload_hash"]);
+
+    if let (Some(current), Some(prior)) = (current, prior)
+        && current != prior
+    {
+        findings.push(error(
+            "handoff_hash_conflict",
+            "same handoff_id was previously associated with a different payload hash".to_string(),
+        ));
     }
 }
 
@@ -533,7 +610,7 @@ mod tests {
           "format":"canvas.bolt_handoff.v0.1",
           "kind":"planning_request",
           "source":{"product":"rumble-canvas","workspace_id":"w","handoff_id":"h","created_by":"a","created_at":"2026-06-30T00:00:00Z"},
-          "package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","items":[{"section_id":"s","revision_id":"r"}]},
+          "package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","artifact_reference_id":null,"items":[{"section_id":"s","revision_id":"r"}]},
           "planning_scope":{"mode":"full_package","target_objects":[],"excluded_objects":[],"goal":"Plan only"},
           "spec_context":{},
           "traceability_links":[{"source_type":"journey","source_id":"j","target_type":"action","target_id":"a","relation_type":"implements"}],
@@ -563,7 +640,7 @@ mod tests {
             report
                 .findings
                 .iter()
-                .any(|f| f.code == "execution_forbidden")
+                .any(|f| f.code == "execution_policy_forbidden")
         );
     }
 
@@ -580,6 +657,54 @@ mod tests {
                 .findings
                 .iter()
                 .any(|f| f.code == "missing_traceability_links")
+        );
+    }
+
+    #[test]
+    fn rejects_artifact_reference_without_integrity_hash() {
+        let payload = valid_payload().replace(
+            "\"artifact_reference_id\":null",
+            "\"artifact_reference_id\":\"artifact:package-demo\"",
+        );
+        let report = validate_str(&payload).unwrap();
+        assert!(!report.is_valid());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.code == "artifact_integrity_failed")
+        );
+    }
+
+    #[test]
+    fn rejects_sovereignty_violation() {
+        let payload = valid_payload().replace(
+            "\"requested_outputs\":[\"implementation_plan\"]",
+            "\"constraints\":{\"sovereignty\":\"violated: mandatory US SaaS for core truth\",\"requires_external_saas\":true},\"requested_outputs\":[\"implementation_plan\"]",
+        );
+        let report = validate_str(&payload).unwrap();
+        assert!(!report.is_valid());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.code == "sovereignty_policy_violation")
+        );
+    }
+
+    #[test]
+    fn rejects_handoff_hash_conflict_when_prior_hash_differs() {
+        let payload = valid_payload().replace(
+            "\"requested_outputs\":[\"implementation_plan\"]",
+            "\"idempotency\":{\"prior_payload_hash\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"payload_hash\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\"},\"requested_outputs\":[\"implementation_plan\"]",
+        );
+        let report = validate_str(&payload).unwrap();
+        assert!(!report.is_valid());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.code == "handoff_hash_conflict")
         );
     }
 }

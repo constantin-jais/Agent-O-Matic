@@ -1,0 +1,34 @@
+---
+description: stack-authority
+alwaysApply: true
+---
+
+# Stack Authority
+
+Rust is the default implementation language for every durable system capability.
+
+Durable means the code decides, stores, authorizes, orchestrates, builds,
+deploys, verifies, or survives beyond a UI session.
+
+## Ownership rules
+
+- **Rust owns durable logic**: core libraries, services, CLIs, workers,
+  orchestration, auth, persistence access, policy evaluation, inspection,
+  release tooling, and portability gates.
+- **TypeScript owns browser-facing experience**: UI, client API glue, form
+  validation, Playwright tests, and thin browser-adjacent integration code.
+- **Bun is a web-app convenience**, not a platform foundation.
+- **Zig owns nothing architecturally.** It may appear only as a hidden helper
+  behind Rust-owned tooling, for example through `cargo-zigbuild`.
+- **Shell is temporary glue.** Durable automation must migrate to Rust.
+
+## Exception rule
+
+Any exception requires an ADR with:
+
+1. why Rust is not appropriate;
+2. expected lifetime of the exception;
+3. migration path back to Rust or deletion;
+4. security, quality, performance, portability, and sovereignty impact.
+
+If the code is durable and there is no ADR, implement it in Rust.

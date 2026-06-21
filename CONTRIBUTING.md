@@ -32,9 +32,14 @@ A quick local pass before opening a PR:
 
 ```sh
 cargo fmt --all --check
-cargo clippy --all-targets --all-features
+cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
+cosmatic generate --check --manifest harness.toml
+cosmatic goals --manifest harness.toml
 ```
+
+If `cosmatic` is not installed, use `cargo run -q --bin cosmatic -- <command>`
+for the two harness commands, then install it before treating it as routine.
 
 ## Reporting
 

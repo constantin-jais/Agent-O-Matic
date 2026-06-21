@@ -21,7 +21,7 @@ to disk, writing nothing). Phase 5 turns that into an enforced gate.
   the full list) when anything diverged; a real IO error still surfaces as itself.
 - Ship a **reusable CI workflow** (`ci-templates/cos-matic.yml`) that installs
   the tool and runs `cosmatic generate --check` and `cosmatic goals`. Adopters copy it.
-- **Dogfood it:** the project's own CI builds `aom` and runs `cosmatic generate --check`
+- **Dogfood it:** the project's own CI builds `cosmatic` and runs `cosmatic generate --check`
   plus `cosmatic goals` against `examples/minimal`, so the repository fails CI if the
   committed example outputs drift or a hard gate breaks.
 

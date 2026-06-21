@@ -1,0 +1,79 @@
+[package]
+name = "cos-matic"
+builtins = [
+  "four-axes",
+  "stack-authority",
+  "rust-core",
+  "sovereign-stack",
+  "artifact-first-release",
+  "security-baseline",
+  "biscuit-auth",
+  "web-boundary",
+  "testing-strategy",
+  "tdd",
+  "code-style",
+  "agent-behavior",
+  "anti-gold-plating",
+  "factual-style",
+  "response-blocks",
+]
+
+[[domains]]
+name = "core-values"
+priority = 110
+content_file = "domains/core-values.md"
+
+[[profiles]]
+name = "default"
+domains = [
+  "core-values",
+  "four-axes",
+  "stack-authority",
+  "rust-core",
+  "sovereign-stack",
+  "artifact-first-release",
+  "security-baseline",
+  "biscuit-auth",
+  "web-boundary",
+  "testing-strategy",
+  "tdd",
+  "code-style",
+  "agent-behavior",
+  "anti-gold-plating",
+  "factual-style",
+  "response-blocks",
+]
+
+[[targets]]
+name = "agents-md"
+adapter = "universal"
+output_file = "AGENTS.md"
+profile = "default"
+
+[[targets]]
+name = "claude-code"
+adapter = "claude"
+output_file = "CLAUDE.md"
+profile = "default"
+
+[[targets]]
+name = "cursor"
+adapter = "cursor"
+output_dir = ".cursor/rules"
+profile = "default"
+
+[[goals]]
+kind = "hard_gate"
+check = "no-dead-domains"
+
+[[goals]]
+kind = "hard_gate"
+check = "require-domains"
+domains = ["core-values", "four-axes", "rust-core", "security-baseline", "tdd"]
+
+[[goals]]
+kind = "observability"
+check = "max-content-lines"
+
+[autonomy]
+level = "L1"

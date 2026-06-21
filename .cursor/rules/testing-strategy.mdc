@@ -1,0 +1,52 @@
+---
+description: testing-strategy
+alwaysApply: true
+---
+
+# Testing Strategy
+
+Tests prove behavior and protect decisions. They are not a ceremony around the
+implementation.
+
+## Principles
+
+- Every non-trivial logic change ships with tests.
+- Every bug fix starts with a regression test when reproduction is possible.
+- Test behavior, not private implementation details.
+- A flaky test is a production incident in the test suite: fix it or remove it.
+- Prefer real boundaries for critical workflows: database, filesystem, HTTP,
+  auth, and generated artifacts.
+
+## Rust-first test stack
+
+- Unit tests live beside the code they specify.
+- Integration tests live in `tests/` when multiple components are assembled.
+- Prefer `cargo nextest` for fast CI execution when available.
+- Use `rstest` for parameterized cases.
+- Use `proptest` for combinatorial or parser/serializer behavior.
+- Use `wiremock` for external HTTP boundaries.
+- Use `testcontainers` or ephemeral schemas for PostgreSQL integration.
+- Use `insta` only for stable, reviewed textual artifacts.
+- Use `cargo llvm-cov` or equivalent for coverage evidence.
+
+## Contract and artifact tests
+
+- Generated configs should be snapshot-tested only when the snapshot is the
+  product contract.
+- API schemas must be generated from source and diffed for breaking changes.
+- Release artifacts need smoke tests from the artifact itself, not from the
+  workspace that produced it.
+- Policy files need golden allow/deny fixtures.
+
+## CI shape
+
+- Fast quality gates first: format, lint, manifest validation.
+- Unit and focused integration tests on every push.
+- Heavier E2E and release smoke tests before merge/release.
+- Coverage is a regression signal, not a vanity metric; critical modules need
+  stronger thresholds than peripheral adapters.
+
+## Test naming
+
+Name tests as specifications: `rejects_expired_token`,
+`renders_cursor_rules_with_frontmatter`, `refuses_drift_without_force`.

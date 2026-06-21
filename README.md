@@ -37,3 +37,23 @@ It transforms:
 ## Product Vision Challenge
 
 `cos-matic` must stay a deterministic orchestrator, not become an all-purpose agent product. Its value is trust: explicit plans, reversible writes, gates, and auditable outcomes.
+
+## Daily Use
+
+Install the CLI locally:
+
+```sh
+cargo install --path crates/cli
+```
+
+Then use `cosmatic` as the session harness:
+
+```sh
+cosmatic generate --check --manifest harness.toml
+cosmatic goals --manifest harness.toml
+```
+
+This repository dogfoods `harness.toml` to generate `AGENTS.md`, `CLAUDE.md`,
+and Cursor rules from one source of truth. See
+[`docs/codex-routine.md`](docs/codex-routine.md) for the full Codex session
+workflow.

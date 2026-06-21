@@ -24,7 +24,7 @@ branch. It never gates, merges, or deploys (that is A5).
   off `HEAD`; it never pushes, never opens a PR, never touches `main`.
 - **Zero-PII audit** — every dispatch decision is journaled (action, issue,
   public repo coordinate, outcome, ts); no diffs, no paths, no authors.
-- **Stops at a branch** — a human gates (`aom gate`/CI) and merges the proposed
+- **Stops at a branch** — a human gates (`cosmatic generate --check`, goals, and CI) and merges the proposed
   branch. Autonomy goes as far as *proposing* a fix, never landing it.
 
 ## Consequences

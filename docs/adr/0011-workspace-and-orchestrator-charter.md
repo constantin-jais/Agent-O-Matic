@@ -28,7 +28,7 @@ compiler crate:
   and still governed by ADR: positioning-and-why-build**. It gains no orchestration, no MCP, no
   network dependency. It loses only its CLI wiring (moved out), which sharpens
   its identity as a pure library.
-- `crates/cli` — the `aom` binary; a thin application layer that wires the
+- `crates/cli` — the `cosmatic` binary; a thin application layer that wires the
   compiler (and, later, the orchestrator) behind a clap CLI.
 - `crates/orchestrator` — the new concern: goals & gates (A1), then the
   incident/issue/dispatch loop (A3+). Its charter is separate from ADR: positioning-and-why-build.

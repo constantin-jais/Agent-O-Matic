@@ -1,0 +1,21 @@
+version = 1
+
+[files]
+".cursor/rules/agent-behavior.mdc" = "7ed76787e1ae728fc52696cbcf1257da9f7c3e1bbb162e1e5546313963298553"
+".cursor/rules/anti-gold-plating.mdc" = "7a3731367188f57cf9a06fe44b3257f6f5fe1062e9989b0630e299b10fec7da3"
+".cursor/rules/artifact-first-release.mdc" = "2d09854ed8dcb478fd46da52a8e0a074064c3d2ee53694654dec469266ca07d7"
+".cursor/rules/biscuit-auth.mdc" = "bb6998d352fbe14f76b2a0773f30f8a737163f3aa44597d5a4ec589fd0fae695"
+".cursor/rules/code-style.mdc" = "d7dc15ae86b63c60630606243d293c0dca35ba3634b036837b1e43d3993c0ccb"
+".cursor/rules/core-values.mdc" = "a20ecb3bc2cc253184b28fee98a9d2b3a113685f5a5379db1abdd25249cc5497"
+".cursor/rules/factual-style.mdc" = "9778538243c96cf50a84b43331d4084bef19075d1df8029650be6462a3f33583"
+".cursor/rules/four-axes.mdc" = "4019e22e957266e3a143b344c279d5c675500285c5039116346b978ba33c8677"
+".cursor/rules/response-blocks.mdc" = "e4aceeff901b3b151fd00e2b5fb9305bf9ddde3d6dc8e1bd2d4393c0878208f2"
+".cursor/rules/rust-core.mdc" = "c998241791bc0c908c967eb0c29f5e1c5925b0ad7b590d6b97b39f19cbbdfcf6"
+".cursor/rules/security-baseline.mdc" = "ae68d4ee64a23413cf72555e3d2749c180ba5b69b38aa8d60151ffbc66c1d6b3"
+".cursor/rules/sovereign-stack.mdc" = "17bc4df085f5e4aa8aa7fe65b37940ba6f5f8cfee8e2ce5d27f85dd962c074da"
+".cursor/rules/stack-authority.mdc" = "06d867ef45ffe69e1ac299edf78cb98c5f81b4dbf8cef26262a7ccbc6912707f"
+".cursor/rules/tdd.mdc" = "4627fa6c18a581af47ed13fd6d932a6509727e3d3548eaadde17059a264ef279"
+".cursor/rules/testing-strategy.mdc" = "bade8e14c01158e49723b6d2f3ac17064e07366b3829da388b3bed42b8bbc2c9"
+".cursor/rules/web-boundary.mdc" = "8a4ad30487286edadb89c5992095578411cfda001ee3f01ffe39779bbf671bee"
+"AGENTS.md" = "2103c11bb57008fb310ebbbd730cbb376a267805341dd61180bbd411a80de46e"
+"CLAUDE.md" = "2103c11bb57008fb310ebbbd730cbb376a267805341dd61180bbd411a80de46e"

@@ -33,7 +33,7 @@ export cosmatic_DEPLOY_SMOKE="true"
 cd "$(git rev-parse --show-toplevel)"
 
 echo "== dry-run (safe, read-only) =="
-cargo run -q --bin aom -- loop --dry-run --issue "$ISSUE" --title "$TITLE"
+cargo run -q --bin cosmatic -- loop --dry-run --issue "$ISSUE" --title "$TITLE"
 
 if [[ "${cosmatic_LIVE:-0}" != "1" ]]; then
   cat <<EOF
@@ -46,4 +46,4 @@ EOF
 fi
 
 echo "== LIVE run (outward, irreversible — sandbox only) =="
-cargo run -q --bin aom -- loop --issue "$ISSUE" --title "$TITLE"
+cargo run -q --bin cosmatic -- loop --issue "$ISSUE" --title "$TITLE"
