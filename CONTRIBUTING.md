@@ -47,6 +47,53 @@ Open an issue with a minimal reproduction (a `harness.toml` snippet and the
 command you ran). For safe-write or drift behaviour, include the relevant
 `.harness/lock.toml` state.
 
+## Before opening a pull request
+
+Please open an issue first for changes involving:
+
+- architecture or public API changes;
+- new dependencies;
+- new product scope;
+- security-sensitive behavior;
+- storage, authentication, authorization, or provider changes;
+- behavior that may affect determinism, reproducibility, privacy, or self-hosting.
+
+Small documentation fixes, fixture additions, typo fixes, and focused tests can be opened directly as pull requests.
+
+## Fixtures and examples
+
+Fixtures and examples should be small, explicit, deterministic, safe to run locally, and free from secrets or personal data.
+
+Prefer adding a new fixture over changing an existing one unless the existing behavior is wrong.
+
+## Dependency policy
+
+Avoid adding dependencies unless they are clearly justified.
+
+New dependencies must be:
+
+- permissive open source where possible: MIT, Apache-2.0, BSD, ISC, or MPL-2.0 preferred;
+- compatible with self-hosting and local development;
+- justified in the issue or pull request;
+- accepted by the repository license and supply-chain checks when present;
+- free from default telemetry, hidden network calls, and unnecessary SaaS coupling.
+
+Discuss before adding:
+
+- LGPL, GPL, or other copyleft dependencies;
+- AGPL dependencies;
+- source-available or non-OSI licenses such as SSPL or BSL;
+- opaque SDKs;
+- dependencies that introduce external providers, storage, auth, analytics, telemetry, or hosted services.
+
+Avoid unnecessary vendor lock-in, proprietary services by default, telemetry by default, and dependencies that make self-hosting harder.
+
+When a dependency is required, explain why a small local implementation is not enough.
+
+## Good first contributions
+
+Good first contributions include improving docs, adding examples, adding fixture cases, improving error messages, adding tests around existing behavior, and making quickstart instructions easier to follow.
+
 ## License
 
 By contributing, you agree your contributions are licensed under the project's

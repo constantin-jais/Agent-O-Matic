@@ -1,0 +1,56 @@
+name: contracts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  handoff-contract:
+    name: Canvas handoff contract smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Validate and dry-run a minimal handoff
+        run: |
+          cat > /tmp/canvas-minimal.valid.json <<'JSON'
+          {
+            "format":"canvas.bolt_handoff.v0.1",
+            "kind":"planning_request",
+            "source":{"product":"rumble-canvas","workspace_id":"w","handoff_id":"h","created_by":"a","created_at":"2026-06-30T00:00:00Z"},
+            "package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","items":[{"section_id":"s","revision_id":"r"}]},
+            "planning_scope":{"mode":"full_package","target_objects":[],"excluded_objects":[],"goal":"Plan only"},
+            "spec_context":{},
+            "traceability_links":[{"source_type":"journey","source_id":"j","target_type":"action","target_id":"a","relation_type":"implements"}],
+            "active_waivers":[],"open_questions":[],"risks":[],"capability_candidates":[],
+            "constraints":{"sovereignty":"self-hostable","data_residency":"EU","non_goals":[]},
+            "requested_outputs":["implementation_plan"],
+            "execution_policy":{"planning_only":true,"allow_execution":false,"requires_human_approval_for_execution":true}
+          }
+          JSON
+          cargo run -q -p cos-matic-cli -- handoff validate /tmp/canvas-minimal.valid.json --json
+          cargo run -q -p cos-matic-cli -- handoff plan /tmp/canvas-minimal.valid.json --dry-run --json
+
+  dogfood-drift:
+    name: Dogfood drift gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Build aom
+        run: cargo build --bin aom
+      - name: Goals
+        run: ./target/debug/aom goals --manifest examples/minimal/harness.toml
+      - name: Drift gate
+        run: ./target/debug/aom generate --check --manifest examples/minimal/harness.toml

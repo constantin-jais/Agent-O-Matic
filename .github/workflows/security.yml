@@ -1,0 +1,24 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-supply-chain:
+    name: Rust supply-chain gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: taiki-e/install-action@5626e41434f03ab3022d9685405c0645c879f441 # cargo-audit
+      - uses: taiki-e/install-action@0e7663120db3124b0ca0f9dd97602c8035479559 # cargo-deny
+      - name: Dependency audit
+        run: ./scripts/audit-deps.sh

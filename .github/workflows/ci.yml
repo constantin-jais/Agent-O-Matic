@@ -1,90 +1,49 @@
 name: ci
 
 on:
-  # PRs are gated by `pull_request`; `push` only verifies the default branch
-  # post-merge. A fix branch otherwise ran CI twice (push + PR) for the same SHA.
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  check:
+  rust:
+    name: Rust quality gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Format
         run: cargo fmt --all --check
-      - name: Lint
-        run: cargo clippy --workspace --all-targets --all-features
+      - name: Check
+        run: cargo check --workspace --all-targets --all-features
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --workspace --all-features
-      - name: Handoff smoke
-        run: |
-          cat > /tmp/canvas-minimal.valid.json <<'JSON'
-          {
-            "format":"canvas.bolt_handoff.v0.1",
-            "kind":"planning_request",
-            "source":{"product":"rumble-canvas","workspace_id":"w","handoff_id":"h","created_by":"a","created_at":"2026-06-30T00:00:00Z"},
-            "package":{"package_id":"p","version":"0.1.0","package_hash":"sha256:0000000000000000000000000000000000000000000000000000000000000000","items":[{"section_id":"s","revision_id":"r"}]},
-            "planning_scope":{"mode":"full_package","target_objects":[],"excluded_objects":[],"goal":"Plan only"},
-            "spec_context":{},
-            "traceability_links":[{"source_type":"journey","source_id":"j","target_type":"action","target_id":"a","relation_type":"implements"}],
-            "active_waivers":[],"open_questions":[],"risks":[],"capability_candidates":[],
-            "constraints":{"sovereignty":"self-hostable","data_residency":"EU","non_goals":[]},
-            "requested_outputs":["implementation_plan"],
-            "execution_policy":{"planning_only":true,"allow_execution":false,"requires_human_approval_for_execution":true}
-          }
-          JSON
-          cargo run -q -p cos-matic-cli -- handoff validate /tmp/canvas-minimal.valid.json --json
-          cargo run -q -p cos-matic-cli -- handoff plan /tmp/canvas-minimal.valid.json --dry-run --json
+      - name: Documentation
+        run: cargo doc --workspace --all-features --no-deps
 
-  # Dogfood: the tool gates its own example (ADR-0010). Fails if the committed
-  # example outputs drift from the source, or a hard gate breaks.
-  dogfood:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Build aom
-        run: cargo build --bin aom
-      - name: Goals
-        run: ./target/debug/aom goals --manifest examples/minimal/harness.toml
-      - name: Drift gate
-        run: ./target/debug/aom generate --check --manifest examples/minimal/harness.toml
-
-  dependency-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@cargo-audit
-      - uses: taiki-e/install-action@cargo-deny
-      - name: Dependency audit
-        run: ./scripts/audit-deps.sh
-
-  # Coverage: a report on every run + a blocking floor (CLAUDE.md quality gate:
-  # "rapport genere, seuil bloquant en CI"). Measured line coverage is ~85.5%; the
-  # live-boundary I/O wrappers (gh/git/claude subprocess) are deliberately not
-  # unit-covered, which caps the achievable figure. The floor sits just below with
-  # a small margin — ratchet it up as coverage grows.
   coverage:
+    name: Coverage floor
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "" # cargo-llvm-cov manages its own instrumentation flags
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@c6d51ded7cde3c421f6cd6046cd601f2248f3710 # cargo-llvm-cov
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Coverage report + blocking floor
         run: cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 80
