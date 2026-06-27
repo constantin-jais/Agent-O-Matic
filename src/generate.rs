@@ -1,6 +1,7 @@
 //! The end-to-end pipeline: manifest → resolved IR → per-target render →
 //! safe-write (or, with `--check`, a drift verification that writes nothing).
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::config::parse::parse_file;
@@ -92,6 +93,9 @@ pub fn run(opts: &Options) -> Result<Report> {
 
     let mut lock = Lockfile::load(&project_root)?;
     let mut report = Report::default();
+    // Guard against two targets resolving to the same output path (case-insensitive,
+    // for macOS/Windows): without this, the later write would silently clobber.
+    let mut seen_paths: HashSet<String> = HashSet::new();
 
     for target in &tree.targets {
         let adapter = adapter_for(&target.adapter).ok_or_else(|| Error::UnknownAdapter {
@@ -108,13 +112,15 @@ pub fn run(opts: &Options) -> Result<Report> {
         let domains = merge::merge(&tree, profile)?;
 
         let rendered = adapter.render(&RenderInput {
-            project_name: &manifest.package.name,
             domains: &domains,
             target,
         })?;
         report.warnings.extend(rendered.warnings);
 
         for file in rendered.files {
+            if !seen_paths.insert(file.path.to_lowercase()) {
+                return Err(Error::DuplicateRenderedPath { path: file.path });
+            }
             let action = if opts.check {
                 verify_no_drift(&project_root, &file.path, &file.content)?;
                 Action::Unchanged

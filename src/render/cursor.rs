@@ -6,8 +6,13 @@
 //! becomes an always-on rule. This is the multi-file, capability-bearing target
 //! that exercises the gating model — adapters that lack this capability degrade
 //! a domain's `globs` with a warning instead (see ADR-0007).
+//!
+//! Domain names are validated upstream (`ir::build`) to be safe identifiers, so
+//! they are used verbatim as filenames — no lossy slugging, hence no collisions.
 
-use super::{Adapter, Feature, RenderInput, RenderOutput, RenderedFile, require_output_dir};
+use super::{
+    Adapter, Feature, RenderInput, RenderOutput, RenderedFile, has_globs, require_output_dir,
+};
 use crate::error::Result;
 use crate::ir::ResolvedDomain;
 
@@ -28,7 +33,7 @@ impl Adapter for Cursor {
             .domains
             .iter()
             .map(|d| RenderedFile {
-                path: format!("{dir}/{}.mdc", slug(&d.name)),
+                path: format!("{dir}/{}.mdc", d.name),
                 content: render_mdc(d),
             })
             .collect();
@@ -39,40 +44,22 @@ impl Adapter for Cursor {
     }
 }
 
-/// A `.cursor/rules/*.mdc` file: YAML frontmatter + Markdown body.
+/// A `.cursor/rules/*.mdc` file: YAML frontmatter + Markdown body. Names and
+/// globs are validated upstream, so they are YAML-safe here.
 fn render_mdc(domain: &ResolvedDomain) -> String {
     let mut s = String::from("---\n");
     s.push_str(&format!("description: {}\n", domain.name));
-    match &domain.globs {
-        Some(globs) if !globs.is_empty() => {
-            s.push_str(&format!("globs: {}\n", globs.join(",")));
-            s.push_str("alwaysApply: false\n");
-        }
-        _ => s.push_str("alwaysApply: true\n"),
+    if has_globs(domain) {
+        let globs = domain.globs.as_ref().expect("has_globs implies Some");
+        s.push_str(&format!("globs: {}\n", globs.join(",")));
+        s.push_str("alwaysApply: false\n");
+    } else {
+        s.push_str("alwaysApply: true\n");
     }
     s.push_str("---\n\n");
     s.push_str(domain.content.trim_end());
     s.push('\n');
     s
-}
-
-/// Filesystem-safe slug for a domain name: lowercase alphanumerics, other runs
-/// collapse to a single `-`.
-fn slug(name: &str) -> String {
-    let mut out = String::new();
-    let mut pending_dash = false;
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() {
-            if pending_dash && !out.is_empty() {
-                out.push('-');
-            }
-            out.push(ch.to_ascii_lowercase());
-            pending_dash = false;
-        } else {
-            pending_dash = true;
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -105,12 +92,11 @@ mod tests {
     }
 
     #[test]
-    fn emits_one_mdc_file_per_domain() {
+    fn emits_one_mdc_file_per_domain_named_after_the_domain() {
         let a = domain("code-style", "Style", None);
         let b = domain("security", "Sec", None);
         let t = target();
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&a, &b],
             target: &t,
         };
@@ -128,7 +114,6 @@ mod tests {
         let scoped = domain("rust", "Rust rules", Some(vec!["src/**/*.rs".into()]));
         let t = target();
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&scoped],
             target: &t,
         };
@@ -140,16 +125,18 @@ mod tests {
     }
 
     #[test]
-    fn no_globs_means_always_apply() {
+    fn no_globs_or_empty_globs_means_always_apply() {
         let always = domain("general", "General", None);
+        let empty = domain("empty-globs", "E", Some(vec![]));
         let t = target();
         let input = RenderInput {
-            project_name: "demo",
-            domains: &[&always],
+            domains: &[&always, &empty],
             target: &t,
         };
         let out = Cursor.render(&input).unwrap();
         assert!(out.files[0].content.contains("alwaysApply: true"));
+        // Empty globs are treated as "no globs", consistent across adapters.
+        assert!(out.files[1].content.contains("alwaysApply: true"));
     }
 
     #[test]
@@ -160,7 +147,6 @@ mod tests {
         };
         let a = domain("a", "A", None);
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&a],
             target: &t,
         };

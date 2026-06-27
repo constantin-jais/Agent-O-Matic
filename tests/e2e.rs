@@ -222,3 +222,78 @@ profile = "default"
     let r2 = generate::run(&opts(&manifest, false, false)).unwrap();
     assert!(r2.files.iter().all(|f| f.action == Action::Unchanged));
 }
+
+#[test]
+fn two_targets_resolving_to_the_same_path_are_rejected() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join("harness.toml"),
+        r#"
+[package]
+name = "dup"
+[[domains]]
+name = "a"
+content = "A"
+[[profiles]]
+name = "default"
+domains = ["a"]
+[[targets]]
+name = "cursor1"
+adapter = "cursor"
+output_dir = ".cursor/rules"
+profile = "default"
+[[targets]]
+name = "cursor2"
+adapter = "cursor"
+output_dir = ".cursor/rules"
+profile = "default"
+"#,
+    )
+    .unwrap();
+    let manifest = root.join("harness.toml");
+    let err = generate::run(&opts(&manifest, false, false)).unwrap_err();
+    assert!(
+        matches!(err, Error::DuplicateRenderedPath { .. }),
+        "got {err:?}"
+    );
+}
+
+#[test]
+fn cursor_partial_clobber_refuses_only_the_edited_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join("harness.toml"),
+        r#"
+[package]
+name = "pc"
+[[domains]]
+name = "alpha"
+content = "A"
+[[domains]]
+name = "beta"
+content = "B"
+[[profiles]]
+name = "default"
+domains = ["alpha", "beta"]
+[[targets]]
+name = "cursor"
+adapter = "cursor"
+output_dir = ".cursor/rules"
+profile = "default"
+"#,
+    )
+    .unwrap();
+    let manifest = root.join("harness.toml");
+    generate::run(&opts(&manifest, false, false)).unwrap();
+
+    // Hand-edit one of the two generated rule files.
+    fs::write(root.join(".cursor/rules/alpha.mdc"), "tampered\n").unwrap();
+
+    // Regeneration refuses because alpha.mdc diverged from the lock; beta.mdc,
+    // unchanged and tool-owned, is still present (per-file safe-write).
+    let err = generate::run(&opts(&manifest, false, false)).unwrap_err();
+    assert!(matches!(err, Error::Clobber { .. }), "got {err:?}");
+    assert!(root.join(".cursor/rules/beta.mdc").exists());
+}

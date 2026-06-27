@@ -8,7 +8,7 @@
 
 use super::{
     Adapter, Feature, RenderInput, RenderOutput, RenderedFile, concatenate, degradation_warnings,
-    require_output_file,
+    has_globs, require_output_file,
 };
 use crate::error::Result;
 
@@ -34,7 +34,7 @@ impl Adapter for Claude {
                 self.id(),
                 input.domains,
                 Feature::GlobActivation,
-                |d| d.globs.is_some(),
+                has_globs,
             ),
         })
     }
@@ -62,7 +62,6 @@ mod tests {
             profile: "default".into(),
         };
         let input = RenderInput {
-            project_name: "demo",
             domains: &[&a],
             target: &t,
         };

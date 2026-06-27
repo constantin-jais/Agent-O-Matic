@@ -107,6 +107,44 @@ pub enum Error {
     #[diagnostic(code(aom::serialize))]
     Serialize { what: String, message: String },
 
+    /// A domain name is not a safe identifier (it flows into file paths and YAML
+    /// frontmatter, so it must be constrained).
+    #[error("invalid domain name `{name}`: {reason}")]
+    #[diagnostic(
+        code(aom::invalid_name),
+        help(
+            "domain names must match [A-Za-z0-9][A-Za-z0-9_-]* (used as filenames and YAML keys)"
+        )
+    )]
+    InvalidName { name: String, reason: String },
+
+    /// A glob pattern contains characters that would break YAML frontmatter.
+    #[error("invalid glob `{glob}` in domain `{domain}`: {reason}")]
+    #[diagnostic(code(aom::invalid_glob))]
+    InvalidGlob {
+        domain: String,
+        glob: String,
+        reason: String,
+    },
+
+    /// A target set both `output_file` and `output_dir`, which is ambiguous.
+    #[error("target `{target}` sets both `output_file` and `output_dir`")]
+    #[diagnostic(
+        code(aom::ambiguous_output),
+        help(
+            "single-file adapters use `output_file`; multi-file adapters use `output_dir` — pick one"
+        )
+    )]
+    AmbiguousOutput { target: String },
+
+    /// Two rendered files resolved to the same output path within one run.
+    #[error("two targets render to the same path `{path}`")]
+    #[diagnostic(
+        code(aom::duplicate_rendered_path),
+        help("paths are compared case-insensitively; give the colliding targets distinct outputs")
+    )]
+    DuplicateRenderedPath { path: String },
+
     /// Safe-write refused to overwrite a hand-edited generated file.
     #[error("refusing to overwrite hand-edited file `{path}`")]
     #[diagnostic(
