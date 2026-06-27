@@ -7,9 +7,12 @@ Accepted (2026-06-27).
 ## Context
 
 Agent-O-Matic began as a single crate: a clean-room, deterministic
-configuration compiler whose charter (ADR-0001) explicitly excludes an MCP
-server, a remote registry, and agent orchestration — these were named as
-gold-plating against the teaching goal.
+configuration compiler whose charter (ADR-0001) scopes success to _learning in
+order to teach_ — not adoption — and names a remote content registry, "19
+targets on day one", and an early MCP server as gold-plating against that goal.
+Agent orchestration is **not** in ADR-0001's exclusion list; it was simply
+outside the compiler's scope. It enters here as a new, orthogonal concern, not
+as a retro-fitted exclusion.
 
 A new, separate ambition has appeared: an **open-source agentic CI/CD loop**
 (incident → issue → hand-off to a fixer agent → hard gates → merge → deploy →
