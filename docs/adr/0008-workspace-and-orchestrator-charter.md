@@ -1,4 +1,4 @@
-# ADR-0006: Workspace split and the orchestrator charter
+# ADR-0008: Workspace split and the orchestrator charter
 
 ## Status
 
