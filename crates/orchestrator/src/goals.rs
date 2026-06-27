@@ -81,6 +81,43 @@ pub fn parse(src: &str) -> Result<Goals, GoalsError> {
     toml::from_str(src).map_err(|e| GoalsError(e.to_string()))
 }
 
+/// Live metric values keyed by name (e.g. `"fmt_violations" -> 0.0`).
+pub type Metrics = std::collections::BTreeMap<String, f64>;
+
+/// Verdict for a gate or observability row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    /// The metric is present and satisfies the comparison.
+    Green,
+    /// The metric is present and violates the comparison.
+    Red,
+    /// The metric is unavailable; nothing was evaluated.
+    Pending,
+}
+
+/// Apply a comparison operator: does `actual op threshold` hold?
+pub fn evaluate(op: Op, actual: f64, threshold: f64) -> bool {
+    match op {
+        Op::Eq => actual == threshold,
+        Op::Ne => actual != threshold,
+        Op::Lt => actual < threshold,
+        Op::Lte => actual <= threshold,
+        Op::Gt => actual > threshold,
+        Op::Gte => actual >= threshold,
+    }
+}
+
+/// Evaluate one metric against an operator/threshold given live metrics.
+///
+/// Returns [`Status::Pending`] when the metric is absent.
+pub fn status(metric: &str, op: Op, threshold: i64, metrics: &Metrics) -> Status {
+    match metrics.get(metric) {
+        None => Status::Pending,
+        Some(&actual) if evaluate(op, actual, threshold as f64) => Status::Green,
+        Some(_) => Status::Red,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,5 +163,34 @@ threshold = 80
     #[test]
     fn rejects_invalid_toml() {
         assert!(parse("this is = not valid = toml").is_err());
+    }
+
+    #[test]
+    fn evaluate_covers_all_ops() {
+        assert!(evaluate(Op::Eq, 0.0, 0.0));
+        assert!(!evaluate(Op::Eq, 1.0, 0.0));
+        assert!(evaluate(Op::Ne, 1.0, 0.0));
+        assert!(!evaluate(Op::Ne, 2.0, 2.0));
+        assert!(evaluate(Op::Lt, 1.0, 2.0));
+        assert!(!evaluate(Op::Lt, 2.0, 2.0));
+        assert!(evaluate(Op::Lte, 2.0, 2.0));
+        assert!(evaluate(Op::Gt, 3.0, 2.0));
+        assert!(evaluate(Op::Gte, 80.0, 80.0));
+        assert!(!evaluate(Op::Gte, 79.0, 80.0));
+    }
+
+    #[test]
+    fn status_is_pending_when_metric_absent() {
+        let m = Metrics::new();
+        assert_eq!(status("coverage_pct", Op::Gte, 80, &m), Status::Pending);
+    }
+
+    #[test]
+    fn status_green_and_red() {
+        let mut m = Metrics::new();
+        m.insert("fmt_violations".to_string(), 0.0);
+        m.insert("coverage_pct".to_string(), 70.0);
+        assert_eq!(status("fmt_violations", Op::Eq, 0, &m), Status::Green);
+        assert_eq!(status("coverage_pct", Op::Gte, 80, &m), Status::Red);
     }
 }
