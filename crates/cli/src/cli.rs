@@ -50,6 +50,25 @@ pub enum Command {
         #[command(subcommand)]
         command: IncidentCommand,
     },
+
+    /// Dispatch a bounded fix attempt for an issue (isolated branch; never merges).
+    Dispatch {
+        /// Issue number to address.
+        #[arg(long)]
+        issue: u64,
+
+        /// Short title of the fix.
+        #[arg(long)]
+        title: String,
+
+        /// Context handed to the fixer (markdown).
+        #[arg(long, default_value = "")]
+        body: String,
+
+        /// Target repo `owner/name` (defaults to the `origin` remote).
+        #[arg(long)]
+        repo: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]

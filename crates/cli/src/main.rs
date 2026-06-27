@@ -8,7 +8,7 @@ use miette::{IntoDiagnostic, miette};
 use agent_o_matic::generate;
 use cli::{Cli, Command, IncidentCommand, LibraryAction};
 use orchestrator::forge::{self, GithubForge, RepoId};
-use orchestrator::incident;
+use orchestrator::{dispatch, incident};
 
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
@@ -103,6 +103,51 @@ fn main() -> miette::Result<()> {
                 issue.url
             );
             Ok(())
+        }
+        Command::Dispatch {
+            issue,
+            title,
+            body,
+            repo,
+        } => {
+            let repo_id = resolve_repo(repo.as_deref())?;
+            // Kill-switch: set AOM_DISPATCH_DISABLED to refuse every dispatch.
+            let env = dispatch::Envelope {
+                enabled: std::env::var_os("AOM_DISPATCH_DISABLED").is_none(),
+                allowlist: vec![repo_id.clone()],
+                max_attempts: 1,
+            };
+            let req = dispatch::FixRequest {
+                issue,
+                title,
+                body,
+                repo: repo_id.clone(),
+            };
+            let repo_root = std::env::current_dir().into_diagnostic()?;
+            let report = dispatch::dispatch(&dispatch::ClaudeFixer { repo_root }, &env, &req)
+                .into_diagnostic()?;
+
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .into_diagnostic()?
+                .as_secs();
+            if let Some(dir) = incident::default_journal_dir() {
+                dispatch::append_audit(&dir, issue, &repo_id, &report, ts).into_diagnostic()?;
+            }
+
+            match report {
+                dispatch::DispatchReport::Refused { reason } => {
+                    eprintln!("refused: {reason}");
+                    std::process::exit(2);
+                }
+                dispatch::DispatchReport::Attempted { branch, summary } => {
+                    println!(
+                        "attempted: {summary}\nbranch `{branch}` is ready for review — \
+                         gate it and merge it yourself (dispatch never merges)."
+                    );
+                    Ok(())
+                }
+            }
         }
     }
 }
