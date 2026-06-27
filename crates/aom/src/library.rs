@@ -1,4 +1,4 @@
-//! The embedded content library (ADR-0008): neutral, reusable instruction
+//! The embedded content library (ADR: embedded-content-library): neutral, reusable instruction
 //! domains compiled into the binary via `include_str!`. No filesystem, no
 //! network — one static binary carries its batteries.
 

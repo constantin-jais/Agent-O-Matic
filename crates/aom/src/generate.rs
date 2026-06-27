@@ -10,7 +10,7 @@ use crate::error::{Error, Result};
 use crate::goals::{self, GoalOutcome};
 use crate::ir::ConfigTree;
 use crate::lock::Lockfile;
-use crate::render::{adapter_for, RenderInput};
+use crate::render::{RenderInput, adapter_for};
 use crate::safe_write::{self, WriteAction};
 use crate::{ir, merge, resolve};
 
@@ -55,7 +55,7 @@ pub struct Report {
     pub files: Vec<FileReport>,
     /// Graceful-degradation warnings collected across all targets (ADR: feature-gating-graceful-degradation).
     pub warnings: Vec<String>,
-    /// Outcomes of the declared goals (ADR-0009); hard-gate failures abort the run.
+    /// Outcomes of the declared goals (ADR: goals-safe-declarative-checks); hard-gate failures abort the run.
     pub goals: Vec<GoalOutcome>,
 }
 
@@ -103,7 +103,7 @@ pub fn run(opts: &Options) -> Result<Report> {
     let (project_root, manifest, tree) = load_tree(&opts.manifest_path)?;
 
     // Goals run before any write: a failed hard gate aborts without producing
-    // output (ADR-0009).
+    // output (ADR: goals-safe-declarative-checks).
     let goal_outcomes = goals::evaluate(&tree, &manifest.goals)?;
     let failures: Vec<String> = goal_outcomes
         .iter()
