@@ -8,7 +8,7 @@ use miette::{IntoDiagnostic, miette};
 use agent_o_matic::generate;
 use cli::{Cli, Command, IncidentCommand, LibraryAction};
 use orchestrator::forge::{self, GithubForge, RepoId};
-use orchestrator::{automerge, deploy, dispatch, incident};
+use orchestrator::{automerge, deploy, dispatch, incident, pipeline};
 
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
@@ -233,6 +233,56 @@ fn main() -> miette::Result<()> {
                 }
                 deploy::DeployOutcome::Promoted { reference } => {
                     println!("promoted: {reference}");
+                    Ok(())
+                }
+            }
+        }
+        Command::Loop {
+            issue,
+            title,
+            body,
+            repo,
+        } => {
+            let repo_id = resolve_repo(repo.as_deref())?;
+            let env = pipeline::LoopEnvelope {
+                enabled: std::env::var_os("AOM_LOOP_DISABLED").is_none(),
+                allowlist: vec![repo_id.clone()],
+                max_iterations: 1,
+            };
+            let req = pipeline::LoopRequest {
+                issue,
+                title,
+                body,
+                repo: repo_id.clone(),
+            };
+            let stages = pipeline::RealStages {
+                repo_root: std::env::current_dir().into_diagnostic()?,
+                deploy_canary: std::env::var("AOM_DEPLOY_CANARY").unwrap_or_default(),
+                deploy_promote: std::env::var("AOM_DEPLOY_PROMOTE").unwrap_or_default(),
+                deploy_rollback: std::env::var("AOM_DEPLOY_ROLLBACK").unwrap_or_default(),
+                deploy_smoke: std::env::var("AOM_DEPLOY_SMOKE").unwrap_or_default(),
+            };
+            let outcome = pipeline::run_loop(&stages, &env, &req, 0).into_diagnostic()?;
+
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .into_diagnostic()?
+                .as_secs();
+            if let Some(dir) = incident::default_journal_dir() {
+                pipeline::append_audit(&dir, &req, &outcome, ts).into_diagnostic()?;
+            }
+
+            match outcome {
+                pipeline::LoopOutcome::Refused { reason } => {
+                    eprintln!("refused: {reason}");
+                    std::process::exit(2);
+                }
+                pipeline::LoopOutcome::Stopped { stage, reason } => {
+                    eprintln!("stopped at {stage}: {reason}");
+                    std::process::exit(1);
+                }
+                pipeline::LoopOutcome::Completed { branch } => {
+                    println!("completed: {branch} — dispatched, merged, and deployed");
                     Ok(())
                 }
             }

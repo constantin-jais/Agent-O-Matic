@@ -91,6 +91,25 @@ pub enum Command {
         #[arg(long)]
         repo: Option<String>,
     },
+
+    /// Run the end-to-end loop: dispatch -> automerge -> deploy (stops at the first failure).
+    Loop {
+        /// Issue number driving the loop.
+        #[arg(long)]
+        issue: u64,
+
+        /// Short title of the fix.
+        #[arg(long)]
+        title: String,
+
+        /// Context handed to the fixer (markdown).
+        #[arg(long, default_value = "")]
+        body: String,
+
+        /// Target repo `owner/name` (defaults to the `origin` remote).
+        #[arg(long)]
+        repo: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
