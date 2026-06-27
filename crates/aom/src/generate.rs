@@ -10,7 +10,7 @@ use crate::error::{Error, Result};
 use crate::goals::{self, GoalOutcome};
 use crate::ir::ConfigTree;
 use crate::lock::Lockfile;
-use crate::render::{RenderInput, adapter_for};
+use crate::render::{adapter_for, RenderInput};
 use crate::safe_write::{self, WriteAction};
 use crate::{ir, merge, resolve};
 
@@ -72,7 +72,7 @@ pub struct Options {
 
 /// Parse, resolve, and validate the manifest into a `ConfigTree`. Shared by
 /// `generate` and the `goals` command.
-pub(crate) fn load_tree(manifest_path: &Path) -> Result<(PathBuf, Manifest, ConfigTree)> {
+pub fn load_tree(manifest_path: &Path) -> Result<(PathBuf, Manifest, ConfigTree)> {
     let display = manifest_path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
