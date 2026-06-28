@@ -214,14 +214,7 @@ impl Fixer for ClaudeFixer {
             )));
         }
         run_git(&wt, &["add", "-A"])?;
-        run_git(
-            &wt,
-            &[
-                "commit",
-                "-m",
-                &format!("fix: #{} {}", req.issue, req.title),
-            ],
-        )?;
+        commit_fix(&wt, &format!("fix: #{} {}", req.issue, req.title))?;
 
         Ok(FixReport {
             branch,
@@ -243,6 +236,25 @@ fn run_git(root: &Path, args: &[&str]) -> Result<(), FixerError> {
         )));
     }
     Ok(())
+}
+
+/// Commit the fixer's staged work with a stable bot identity. A fresh CI runner
+/// has no configured git user, so a bare `git commit` fails with "Author identity
+/// unknown" — setting it per-invocation keeps the orchestrator self-contained
+/// (works in CI and locally, without mutating global git config).
+fn commit_fix(wt: &Path, message: &str) -> Result<(), FixerError> {
+    run_git(
+        wt,
+        &[
+            "-c",
+            "user.name=aom-bot",
+            "-c",
+            "user.email=aom-bot@users.noreply.github.com",
+            "commit",
+            "-m",
+            message,
+        ],
+    )
 }
 
 /// Like `run_git`, but returns stdout — used to inspect `git status` before
@@ -299,14 +311,7 @@ impl Fixer for StubFixer {
             .map_err(|e| FixerError(format!("write marker: {e}")))?;
 
         run_git(&wt, &["add", "-A"])?;
-        run_git(
-            &wt,
-            &[
-                "commit",
-                "-m",
-                &format!("fix: #{} {} (stub)", req.issue, req.title),
-            ],
-        )?;
+        commit_fix(&wt, &format!("fix: #{} {} (stub)", req.issue, req.title))?;
 
         Ok(FixReport {
             branch,
