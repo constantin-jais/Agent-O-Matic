@@ -7,6 +7,7 @@
 
 use std::path::Path;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -162,44 +163,108 @@ pub fn append_audit(
     writeln!(f, "{line}")
 }
 
-/// Real gate: the branch's PR checks via `gh`. All passing -> Green; any failing
-/// -> Red; anything pending/missing -> Unknown (fail-closed). Subprocess, so it
-/// is exercised live, not in unit tests.
-pub struct GhChecksGate;
+/// What a single poll of the PR checks shows.
+#[derive(Debug, PartialEq, Eq)]
+enum PollState {
+    /// Checks have settled to a final verdict.
+    Settled(Verdict),
+    /// At least one check is still running — worth waiting for.
+    Pending,
+    /// No PR, or no checks at all — nothing to wait for.
+    NoChecks,
+}
 
-impl Gate for GhChecksGate {
-    fn verdict(&self, req: &MergeRequest) -> Result<Verdict, MergeError> {
+/// Classify a set of `(name, bucket)` checks into a poll state. Pure, so the
+/// branching (which `gh` buckets mean pass/fail/wait) is unit-tested; only the
+/// `gh` call and the wait around it are the live boundary.
+fn classify(checks: &[(String, String)]) -> PollState {
+    if checks.is_empty() {
+        return PollState::NoChecks;
+    }
+    let mut failing = Vec::new();
+    let mut pending = false;
+    for (name, bucket) in checks {
+        match bucket.as_str() {
+            // `skipping` is a final, non-blocking state — not something to wait on.
+            "pass" | "skipping" => {}
+            "fail" | "cancel" => failing.push(name.clone()),
+            _ => pending = true,
+        }
+    }
+    if !failing.is_empty() {
+        PollState::Settled(Verdict::Red { reasons: failing })
+    } else if pending {
+        PollState::Pending
+    } else {
+        PollState::Settled(Verdict::Green)
+    }
+}
+
+/// Real gate: the branch's PR checks via `gh`, **waited until they settle**. A
+/// merge gate that read a freshly-pushed PR once and called its pending checks
+/// `Unknown` would block every real run; instead it polls (every `interval`, up
+/// to `timeout`) until the checks pass or fail. All passing -> Green; any failing
+/// -> Red; no PR / no checks / still pending at the deadline -> Unknown
+/// (fail-closed). The poll loop (subprocess + sleep) is the live boundary; the
+/// classification is unit-tested.
+pub struct GhChecksGate {
+    pub timeout: Duration,
+    pub interval: Duration,
+}
+
+impl Default for GhChecksGate {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(600),
+            interval: Duration::from_secs(15),
+        }
+    }
+}
+
+impl GhChecksGate {
+    fn poll_once(&self, req: &MergeRequest) -> Result<PollState, MergeError> {
         let out = Command::new("gh")
             .args(["pr", "checks", &req.branch, "--json", "name,bucket"])
             .output()
             .map_err(|e| MergeError(format!("spawn gh: {e}")))?;
         if !out.status.success() {
-            // No PR / no checks yet -> we cannot prove green. Fail-closed.
-            return Ok(Verdict::Unknown);
+            // No PR / no checks yet -> nothing to wait for. Fail-closed.
+            return Ok(PollState::NoChecks);
         }
         let v: serde_json::Value = serde_json::from_slice(&out.stdout)
             .map_err(|e| MergeError(format!("parse gh output: {e}")))?;
-        let checks = v.as_array().cloned().unwrap_or_default();
-        if checks.is_empty() {
-            return Ok(Verdict::Unknown);
-        }
-        let mut failing = Vec::new();
-        let mut pending = false;
-        for c in &checks {
-            match c["bucket"].as_str() {
-                Some("pass") => {}
-                Some("fail") | Some("cancel") => {
-                    failing.push(c["name"].as_str().unwrap_or("?").to_string());
+        let checks: Vec<(String, String)> = v
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|c| {
+                        (
+                            c["name"].as_str().unwrap_or("?").to_string(),
+                            c["bucket"].as_str().unwrap_or("").to_string(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(classify(&checks))
+    }
+}
+
+impl Gate for GhChecksGate {
+    fn verdict(&self, req: &MergeRequest) -> Result<Verdict, MergeError> {
+        let deadline = Instant::now() + self.timeout;
+        loop {
+            match self.poll_once(req)? {
+                PollState::Settled(v) => return Ok(v),
+                PollState::NoChecks => return Ok(Verdict::Unknown),
+                PollState::Pending => {
+                    if Instant::now() >= deadline {
+                        // Still not settled at the deadline -> fail-closed.
+                        return Ok(Verdict::Unknown);
+                    }
+                    std::thread::sleep(self.interval);
                 }
-                _ => pending = true,
             }
-        }
-        if !failing.is_empty() {
-            Ok(Verdict::Red { reasons: failing })
-        } else if pending {
-            Ok(Verdict::Unknown)
-        } else {
-            Ok(Verdict::Green)
         }
     }
 }
@@ -382,5 +447,49 @@ mod tests {
         assert_eq!(v["repo"], "o/n");
         assert_eq!(v["outcome"], "merged");
         assert_eq!(v.as_object().unwrap().len(), 5);
+    }
+
+    fn checks(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(n, b)| (n.to_string(), b.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn classify_empty_is_no_checks() {
+        assert_eq!(classify(&[]), PollState::NoChecks);
+    }
+
+    #[test]
+    fn classify_all_pass_is_green() {
+        assert_eq!(
+            classify(&checks(&[("ci", "pass"), ("lint", "pass")])),
+            PollState::Settled(Verdict::Green)
+        );
+    }
+
+    #[test]
+    fn classify_any_fail_is_red() {
+        match classify(&checks(&[("ci", "pass"), ("lint", "fail")])) {
+            PollState::Settled(Verdict::Red { reasons }) => assert_eq!(reasons, ["lint"]),
+            other => panic!("expected Red, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classify_pending_waits() {
+        assert_eq!(
+            classify(&checks(&[("ci", "pass"), ("slow", "pending")])),
+            PollState::Pending
+        );
+    }
+
+    #[test]
+    fn classify_skipping_does_not_block() {
+        assert_eq!(
+            classify(&checks(&[("ci", "pass"), ("opt", "skipping")])),
+            PollState::Settled(Verdict::Green)
+        );
     }
 }
