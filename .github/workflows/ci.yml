@@ -39,3 +39,22 @@ jobs:
         run: ./target/debug/aom goals --manifest examples/minimal/harness.toml
       - name: Drift gate
         run: ./target/debug/aom generate --check --manifest examples/minimal/harness.toml
+
+  # Coverage: a report on every run + a blocking floor (CLAUDE.md quality gate:
+  # "rapport genere, seuil bloquant en CI"). The floor is intentionally
+  # conservative — the live-boundary I/O wrappers (gh/git/claude subprocess) are
+  # deliberately not unit-covered. Ratchet --fail-under-lines toward the printed
+  # actual as coverage grows.
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "" # cargo-llvm-cov manages its own instrumentation flags
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+      - name: Coverage report + blocking floor
+        run: cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 60
