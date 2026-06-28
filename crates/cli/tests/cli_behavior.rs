@@ -105,3 +105,85 @@ profile = "default"
         "warning should name the unsupported glob activation; stderr:\n{stderr}"
     );
 }
+
+// --- Orchestrator safety envelope, end-to-end through the binary ---
+//
+// The kill-switch is the envelope's most important guarantee: with it set, a
+// command must refuse BEFORE any network or agent call. These run hermetically
+// (no gh, no git remote, no claude) — an explicit `--repo` skips remote
+// resolution, and the kill-switch short-circuits ahead of every side effect. They
+// cover the orchestrator arms of `main.rs`, which no library test reaches.
+
+fn run_killed(
+    args: &[&str],
+    disable_var: &str,
+    extra_env: &[(&str, &str)],
+) -> std::process::Output {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut c = Command::new(AOM);
+    c.args(args).env(disable_var, "1").current_dir(tmp.path());
+    for (k, v) in extra_env {
+        c.env(k, v);
+    }
+    c.output().expect("spawn aom")
+}
+
+fn assert_refused(out: &std::process::Output, who: &str) {
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "{who}: expected exit 2 (refused); stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("refused"),
+        "{who}: expected 'refused' on stderr; got:\n{stderr}"
+    );
+}
+
+#[test]
+fn dispatch_kill_switch_refuses_before_any_agent() {
+    let out = run_killed(
+        &["dispatch", "--issue", "1", "--title", "x", "--repo", "o/n"],
+        "AOM_DISPATCH_DISABLED",
+        &[],
+    );
+    assert_refused(&out, "dispatch");
+}
+
+#[test]
+fn automerge_kill_switch_refuses_before_any_merge() {
+    let out = run_killed(
+        &["automerge", "--branch", "x", "--repo", "o/n"],
+        "AOM_AUTOMERGE_DISABLED",
+        &[],
+    );
+    assert_refused(&out, "automerge");
+}
+
+#[test]
+fn deploy_kill_switch_refuses_before_any_command() {
+    // The deploy arm reads its commands before the envelope, so they must be set;
+    // the kill-switch then refuses before any of them runs.
+    let out = run_killed(
+        &["deploy", "--target", "x", "--repo", "o/n"],
+        "AOM_DEPLOY_DISABLED",
+        &[
+            ("AOM_DEPLOY_CANARY", "true"),
+            ("AOM_DEPLOY_PROMOTE", "true"),
+            ("AOM_DEPLOY_ROLLBACK", "true"),
+            ("AOM_DEPLOY_SMOKE", "true"),
+        ],
+    );
+    assert_refused(&out, "deploy");
+}
+
+#[test]
+fn loop_kill_switch_refuses_before_any_stage() {
+    let out = run_killed(
+        &["loop", "--issue", "1", "--title", "x", "--repo", "o/n"],
+        "AOM_LOOP_DISABLED",
+        &[],
+    );
+    assert_refused(&out, "loop");
+}
