@@ -254,7 +254,7 @@ impl Stages for RealStages {
             repo: req.repo.clone(),
         };
         let outcome = automerge::auto_merge(
-            &automerge::GhChecksGate,
+            &automerge::GhChecksGate::default(),
             &automerge::GhMerger,
             &env,
             &mreq,
