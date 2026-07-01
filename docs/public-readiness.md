@@ -27,6 +27,7 @@ demonstration.
 
 - [ ] Engine workflows are read-only unless a release workflow explicitly needs more.
 - [ ] Live sandbox workflow exists only in `bolt-harness` and is `workflow_dispatch` only.
+- [ ] Write-capable autonomy is limited to agent-owned branch namespaces (ADR-0035).
 - [ ] Live mode is fenced by `BOLT_HARNESS_SANDBOX=true`.
 - [ ] Actions in repository-owned workflows are pinned to commit SHAs.
 - [ ] Reusable templates document whether they are pinned examples or user-facing templates.
