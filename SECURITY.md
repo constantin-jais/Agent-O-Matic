@@ -8,7 +8,7 @@ This repository is pre-`trusted` unless its README or ecosystem cockpit states o
 
 Please report vulnerabilities privately through GitHub Security Advisories for this repository when available. If private advisories are unavailable, open a minimal issue that does not disclose exploit details and request a private follow-up channel.
 
-Do not include secrets, personal data, tokens, exploit payloads, or production credentials in public issues, logs, screenshots, or attachments.
+Do not include secrets, personal data, tokens, exploit payloads, or production credentials in public issues, logs, screenshots, or attachments. See [docs/secrets.md](docs/secrets.md) for rotation and storage rules.
 
 ## Expected handling
 
