@@ -33,14 +33,18 @@ fenced with:
 BOLT_HARNESS_SANDBOX=true
 ```
 
-Live mode requires a fine-grained sandbox-only credential stored as
-`BOLT_COSMATIC_BOT_TOKEN`. `ANTHROPIC_API_KEY` is needed only when deliberately
-running `fixer=claude`; prefer `fixer=stub` for public demonstrations.
+Live mode in the public harness uses the deterministic stub fixer and requires a
+fine-grained sandbox-only credential stored as `BOLT_COSMATIC_BOT_TOKEN`.
+
+Local LLM smoke tests should use LM Studio with `google/gemma-4-26b-a4b-qat` at
+`http://127.0.0.1:1234`; see [`docs/local-llm.md`](local-llm.md). This local path
+requires no repository secret and is not exposed through public CI.
 
 ## Credential rules
 
 - Dry-run: built-in `github.token`, read-only workflow permissions.
-- Live: sandbox-only fine-grained PAT, never a broad human token.
+- Live public harness: sandbox-only fine-grained PAT, never a broad human token.
+- Local LLM smoke: no GitHub secret; LM Studio runs on the operator workstation.
 - `BOLT_COSMATIC_CHECKS_TOKEN` is supplied by the workflow from `github.token`;
   do not create it as a repository secret.
 - No production repositories, production logs, private URLs, secrets, tokens, or
