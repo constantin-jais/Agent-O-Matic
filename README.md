@@ -9,6 +9,30 @@
 **Role:** deterministic intent-to-execution brain  
 **Mission:** turn high-level operational intent into safe, inspectable plans across agents, tools, and repositories.
 
+## Naming conventions
+
+- Repository / package: `bolt-cos-matic`.
+- CLI binary: `bolt-cosmatic`.
+- Rust library crate: `bolt_cos_matic`.
+- Engine environment variables: `BOLT_COSMATIC_*`.
+- Public sandbox guard: `BOLT_HARNESS_SANDBOX` in [`bolt-harness`](https://github.com/constantin-jais/bolt-harness).
+
+Legacy `aom` / `AOM_*` names are obsolete and should not be reintroduced outside
+historical ADR context.
+
+## Quickstart
+
+```sh
+git clone https://github.com/constantin-jais/bolt-cos-matic.git
+cd bolt-cos-matic
+cargo test --workspace --all-features
+cargo run -q --bin bolt-cosmatic -- goals --manifest harness.toml
+cargo run -q --bin bolt-cosmatic -- generate --check --manifest harness.toml
+```
+
+Use [`bolt-harness`](https://github.com/constantin-jais/bolt-harness) for public
+sandbox proof runs. The engine repository keeps only read-only smoke workflows.
+
 ---
 
 ## Stack role
@@ -47,6 +71,8 @@ See:
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines;
 - [ROADMAP.md](ROADMAP.md) for current contribution priorities;
+- [docs/versioning.md](docs/versioning.md) for maturity and release typology;
+- [docs/secrets.md](docs/secrets.md) for credential rotation and storage;
 - [issue templates](.github/ISSUE_TEMPLATE/) for bugs, docs issues, fixture/example requests, and design discussions.
 
 ## Forge role
