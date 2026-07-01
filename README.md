@@ -73,6 +73,7 @@ See:
 - [ROADMAP.md](ROADMAP.md) for current contribution priorities;
 - [docs/versioning.md](docs/versioning.md) for maturity and release typology;
 - [docs/secrets.md](docs/secrets.md) for credential rotation and storage;
+- [docs/local-llm.md](docs/local-llm.md) for local LM Studio / Gemma smoke tests;
 - [issue templates](.github/ISSUE_TEMPLATE/) for bugs, docs issues, fixture/example requests, and design discussions.
 
 ## Forge role
