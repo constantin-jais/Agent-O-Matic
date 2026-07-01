@@ -35,6 +35,9 @@ BOLT_HARNESS_SANDBOX=true
 
 Live mode in the public harness uses the deterministic stub fixer and requires a
 fine-grained sandbox-only credential stored as `BOLT_COSMATIC_BOT_TOKEN`.
+That token is for bounded branch-owning autonomy (ADR-0035): create issues/PRs,
+push candidate branches, and clean up agent-owned branches — never repository
+administration, secrets, settings, or protected branches.
 
 Local LLM smoke tests should use LM Studio with `google/gemma-4-26b-a4b-qat` at
 `http://127.0.0.1:1234`; see [`docs/local-llm.md`](local-llm.md). This local path
@@ -44,6 +47,8 @@ requires no repository secret and is not exposed through public CI.
 
 - Dry-run: built-in `github.token`, read-only workflow permissions.
 - Live public harness: sandbox-only fine-grained PAT, never a broad human token.
+- Branch autonomy: only branches inside the agent-owned namespace may be created,
+  pushed, or deleted.
 - Local LLM smoke: no GitHub secret; LM Studio runs on the operator workstation.
 - `BOLT_COSMATIC_CHECKS_TOKEN` is supplied by the workflow from `github.token`;
   do not create it as a repository secret.

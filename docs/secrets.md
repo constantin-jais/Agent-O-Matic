@@ -25,13 +25,17 @@ or an OS password manager.
 | local LM Studio smoke | none | nowhere | uses `http://127.0.0.1:1234/v1`; see `docs/local-llm.md` |
 | engine dry-run workflow | none | nowhere | uses scoped `github.token` with read permissions |
 | harness dry-run workflow | none | nowhere | installs a pinned engine tag and runs `loop --dry-run` |
-| harness live with deterministic stub | `BOLT_COSMATIC_BOT_TOKEN` | GitHub Actions secret on the disposable sandbox only | fine-grained PAT, sandbox repo only |
+| harness live with deterministic stub | `BOLT_COSMATIC_BOT_TOKEN` | GitHub Actions secret on the disposable sandbox only | lets the agent create issues/PRs and push/delete only agent-owned branches, as enforced by policy |
 | optional cloud-provider fixer experiment | provider-specific key | only on the disposable sandbox, only for the experiment | not part of the public default path |
 
 `BOLT_COSMATIC_CHECKS_TOKEN` is supplied by workflows from `github.token`; do not
 create it as a repository secret.
 
 ## GitHub PAT scope for live sandbox
+
+The token exists only for bounded branch-owning autonomy (ADR-0035): the agent can
+create issues, open PRs, push candidate branches, and clean up its own branches in
+a disposable sandbox. It does not make the agent the repository owner.
 
 Use a fine-grained PAT, repository access limited to the disposable sandbox repo,
 with only:
@@ -40,8 +44,12 @@ with only:
 - Issues: read/write;
 - Pull requests: read/write.
 
-Do not grant organization-wide access, Actions admin, Packages, Codespaces, or
-unrelated repository access.
+Do not grant organization-wide access, Actions admin, Packages, Codespaces,
+Administration, Secrets, or unrelated repository access.
+
+GitHub PATs cannot reliably express "only branches under `bolt/`". That boundary
+is enforced by Bolt-Cos-Matic's branch policy and by GitHub branch protection on
+`main`.
 
 ## Rotation procedure
 
